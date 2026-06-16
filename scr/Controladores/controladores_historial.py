@@ -2,7 +2,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
-from respuesta import respuesta_ok
+from scr.Utilidades.respuesta import respuesta_ok
 
 
 def ver_historial_seguimiento(db: Session = Depends(get_db)):
