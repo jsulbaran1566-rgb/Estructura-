@@ -2,8 +2,14 @@ from fastapi import Query, Depends
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
-from respuesta import respuesta_ok, respuesta_error
+from scr.Utilidades.respuesta import respuesta_ok, respuesta_error
 from Esquemas.Esquemas import CompradorCrear
+from Excepciones.excepciones_compradores import (
+    ErrorCompradorNoEncontrado,
+    ErrorCompradorYaExiste,
+    ErrorConfirmacionRequerida,
+    ErrorIdInvalido,
+)
 
 
 def obtener_compradores(db: Session = Depends(get_db)):
@@ -22,7 +28,7 @@ def obtener_comprador_por_id_y_ciudad(
     db: Session = Depends(get_db),
 ):
     if id <= 0:
-        return respuesta_error("El id debe ser un número positivo", status_code=400)
+        raise ErrorIdInvalido()
 
     campos_validos = ["nombre", "ciudad"]
     if orden not in campos_validos:
@@ -34,7 +40,7 @@ def obtener_comprador_por_id_y_ciudad(
     ).all()
 
     if not resultado:
-        return respuesta_error("Comprador no encontrado con esos criterios", status_code=404)
+        raise ErrorCompradorNoEncontrado(id, ciudad)
 
     ordenado = sorted(resultado, key=lambda x: getattr(x, orden))[:limite]
     return respuesta_ok(
@@ -48,7 +54,7 @@ def agregar_comprador(
     db: Session = Depends(get_db),
 ):
     if db.query(models.Comprador).filter(models.Comprador.id == datos.id).first():
-        return respuesta_error("Ya existe un comprador con ese id", status_code=400)
+        raise ErrorCompradorYaExiste(datos.id)
 
     nuevo = models.Comprador(id=datos.id, nombre=datos.nombre, ciudad=datos.ciudad)
     db.add(nuevo)
@@ -69,9 +75,9 @@ def eliminar_comprador(
     db: Session = Depends(get_db),
 ):
     if id <= 0:
-        return respuesta_error("El id debe ser un número positivo", status_code=400)
+        raise ErrorIdInvalido()
     if not confirmar:
-        return respuesta_error("Debe confirmar la eliminación con confirmar=true", status_code=400)
+        raise ErrorConfirmacionRequerida()
 
     comprador = db.query(models.Comprador).filter(
         models.Comprador.id == id,
@@ -79,7 +85,7 @@ def eliminar_comprador(
     ).first()
 
     if not comprador:
-        return respuesta_error("Comprador no encontrado con esos criterios", status_code=404)
+        raise ErrorCompradorNoEncontrado(id, ciudad)
 
     nombre = comprador.nombre
     db.delete(comprador)
