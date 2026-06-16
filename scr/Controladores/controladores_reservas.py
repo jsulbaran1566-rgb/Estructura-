@@ -2,8 +2,8 @@ from fastapi import Query, Depends
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
-from excepciones import ErrorStockInsuficiente
-from respuesta import respuesta_ok, respuesta_error
+from scr.Excepciones.excepciones import ErrorStockInsuficiente
+from scr.Utilidades.respuesta import respuesta_ok, respuesta_error
 from Esquemas.Esquemas import ReservaCrear
 
 
