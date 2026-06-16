@@ -2,8 +2,13 @@ from fastapi import Query, Depends
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
-from respuesta import respuesta_ok, respuesta_error
+from scr.Utilidades.respuesta import respuesta_ok, respuesta_error
 from Esquemas.Esquemas import CategoriaCrear
+from Excepciones.excepciones_categorias import (
+    ErrorCategoriaNoEncontrada,
+    ErrorCategoriaYaExiste,
+    ErrorCantidadMinNegativa,
+)
 
 
 def obtener_categorias(db: Session = Depends(get_db)):
@@ -21,11 +26,11 @@ def obtener_lotes_por_categoria(
     limite:  int  = Query(default=10, ge=1, le=100, description="Límite de resultados (1-100)"),
     db: Session = Depends(get_db),
 ):
-    if not db.query(models.Categoria).filter(models.Categoria.nombre == nombre).first():
-        return respuesta_error("Categoría no encontrada", status_code=404)
+    if not db.query(models.Categoria).filter(models.Categoria.nombre.ilike(nombre)).first():
+        raise ErrorCategoriaNoEncontrada(nombre)
 
     if cantidad_min < 0:
-        return respuesta_error("cantidad_min no puede ser negativo", status_code=400)
+        raise ErrorCantidadMinNegativa()
 
     resultado = db.query(models.Lote).filter(
         models.Lote.categoria.ilike(nombre),
@@ -46,7 +51,7 @@ def agregar_categoria(
     db: Session = Depends(get_db),
 ):
     if db.query(models.Categoria).filter(models.Categoria.nombre == datos.nombre).first():
-        return respuesta_error("La categoría ya existe", status_code=400)
+        raise ErrorCategoriaYaExiste(datos.nombre)
 
     nueva = models.Categoria(nombre=datos.nombre)
     db.add(nueva)
