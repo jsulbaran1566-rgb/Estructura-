@@ -2,21 +2,31 @@ from fastapi import Query, Depends
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
-from Utilidades.respuesta import respuesta_ok, respuesta_error
-from Esquemas.Esquemas import LoteCrear, LoteEditar
 from Excepciones.excepciones_lotes import (
     ErrorLoteNoEncontrado,
     ErrorLoteYaExiste,
     ErrorCantidadInvalida,
     ErrorCategoriaInvalidaEnLote,
 )
+from respuesta import respuesta_ok, respuesta_error
+from Esquemas.Esquemas import LoteCrear, LoteEditar
 
 
 def obtener_lotes(db: Session = Depends(get_db)):
     lotes = db.query(models.Lote).all()
     return respuesta_ok(
         message="Lotes obtenidos",
-        data=[{"id": l.id, "producto": l.producto, "cantidad": l.cantidad, "categoria": l.categoria} for l in lotes],
+        data=[
+            {
+                "id": l.id,
+                "producto": l.producto,
+                "cantidad": l.cantidad,
+                "categoria": l.categoria,
+                "productor_id": l.productor_id,
+                "productor": l.productor.nombre,
+            }
+            for l in lotes
+        ],
     )
 
 
@@ -48,7 +58,17 @@ def obtener_lote_por_id_y_categoria(
     ordenado = sorted(resultado, key=lambda x: getattr(x, ordenar_por))
     return respuesta_ok(
         message="Lote obtenido",
-        data=[{"id": l.id, "producto": l.producto, "cantidad": l.cantidad, "categoria": l.categoria} for l in ordenado],
+        data=[
+            {
+                "id": l.id,
+                "producto": l.producto,
+                "cantidad": l.cantidad,
+                "categoria": l.categoria,
+                "productor_id": l.productor_id,
+                "productor": l.productor.nombre,
+            }
+            for l in ordenado
+        ],
     )
 
 
@@ -65,7 +85,23 @@ def agregar_lote(
     if datos.cantidad <= 0:
         raise ErrorCantidadInvalida()
 
-    nuevo = models.Lote(id=datos.id, producto=datos.producto, cantidad=datos.cantidad, categoria=datos.categoria)
+    # lotes.productor_id es FK a usuarios.id: el usuario debe existir y tener rol 'Productor'
+    productor = db.query(models.Usuario).filter(models.Usuario.id == datos.productor_id).first()
+    if not productor:
+        return respuesta_error(f"No existe un usuario con id {datos.productor_id}", status_code=404)
+    if productor.rol != "Productor":
+        return respuesta_error(
+            f"El usuario {datos.productor_id} tiene rol '{productor.rol}', no 'Productor'.",
+            status_code=400,
+        )
+
+    nuevo = models.Lote(
+        id=datos.id,
+        producto=datos.producto,
+        cantidad=datos.cantidad,
+        categoria=datos.categoria,
+        productor_id=datos.productor_id,
+    )
     db.add(nuevo)
 
     historial = models.HistorialSeguimiento(accion="Creación de lote", lote=datos.id, producto=datos.producto)
@@ -75,7 +111,13 @@ def agregar_lote(
     db.refresh(nuevo)
     return respuesta_ok(
         message="Lote agregado",
-        data={"id": nuevo.id, "producto": nuevo.producto, "cantidad": nuevo.cantidad, "categoria": nuevo.categoria},
+        data={
+            "id": nuevo.id,
+            "producto": nuevo.producto,
+            "cantidad": nuevo.cantidad,
+            "categoria": nuevo.categoria,
+            "productor_id": nuevo.productor_id,
+        },
         status_code=201,
     )
 
@@ -105,5 +147,11 @@ def editar_lote(
     db.refresh(lote)
     return respuesta_ok(
         message="Lote actualizado",
-        data={"id": lote.id, "producto": lote.producto, "cantidad": lote.cantidad, "categoria": lote.categoria},
+        data={
+            "id": lote.id,
+            "producto": lote.producto,
+            "cantidad": lote.cantidad,
+            "categoria": lote.categoria,
+            "productor_id": lote.productor_id,
+        },
     )
