@@ -2,13 +2,13 @@ from fastapi import Query, Depends
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
-from Utilidades.respuesta import respuesta_ok, respuesta_error
-from Esquemas.Esquemas import CategoriaCrear
 from Excepciones.excepciones_categorias import (
     ErrorCategoriaNoEncontrada,
     ErrorCategoriaYaExiste,
     ErrorCantidadMinNegativa,
 )
+from respuesta import respuesta_ok
+from Esquemas.Esquemas import CategoriaCrear
 
 
 def obtener_categorias(db: Session = Depends(get_db)):
@@ -26,7 +26,7 @@ def obtener_lotes_por_categoria(
     limite:  int  = Query(default=10, ge=1, le=100, description="Límite de resultados (1-100)"),
     db: Session = Depends(get_db),
 ):
-    if not db.query(models.Categoria).filter(models.Categoria.nombre.ilike(nombre)).first():
+    if not db.query(models.Categoria).filter(models.Categoria.nombre == nombre).first():
         raise ErrorCategoriaNoEncontrada(nombre)
 
     if cantidad_min < 0:
@@ -42,7 +42,17 @@ def obtener_lotes_por_categoria(
 
     return respuesta_ok(
         message="Lotes por categoría obtenidos",
-        data=[{"id": l.id, "producto": l.producto, "cantidad": l.cantidad, "categoria": l.categoria} for l in resultado[:limite]],
+        data=[
+            {
+                "id": l.id,
+                "producto": l.producto,
+                "cantidad": l.cantidad,
+                "categoria": l.categoria,
+                "productor_id": l.productor_id,
+                "productor": l.productor.nombre,
+            }
+            for l in resultado[:limite]
+        ],
     )
 
 
