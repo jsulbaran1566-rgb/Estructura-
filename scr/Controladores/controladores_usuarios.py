@@ -1,4 +1,4 @@
-from fastapi import Query, Depends
+from fastapi import Depends
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
@@ -7,8 +7,10 @@ from Excepciones.excepciones_usuarios import (
     ErrorUsuarioYaExiste,
     ErrorRolInvalido,
 )
-from Utilidades.respuesta import respuesta_ok, respuesta_error
+from respuesta import respuesta_ok, respuesta_error
 from Esquemas.Esquemas import UsuarioCrear, UsuarioEditar
+
+ROLES_VALIDOS = ["Productor", "Comprador", "Administrador"]
 
 
 def obtener_usuarios(db: Session = Depends(get_db)):
@@ -39,15 +41,13 @@ def obtener_usuario_por_id(
 def obtener_usuario_por_id_y_rol(
     id: int,
     rol: str,
-    activo: bool = Query(default=True, description="Filtrar usuarios activos o inactivos"),
     db: Session = Depends(get_db),
 ):
     if id <= 0:
         return respuesta_error("El id debe ser un número positivo", status_code=400)
 
-    roles_validos = ["Productor", "Comprador", "Administrador"]
-    if rol not in roles_validos:
-        raise ErrorRolInvalido(rol, roles_validos)
+    if rol not in ROLES_VALIDOS:
+        raise ErrorRolInvalido(rol, ROLES_VALIDOS)
 
     resultado = db.query(models.Usuario).filter(
         models.Usuario.id == id,
@@ -59,10 +59,7 @@ def obtener_usuario_por_id_y_rol(
 
     return respuesta_ok(
         message="Usuario obtenido",
-        data={
-            "activo": activo,
-            "usuarios": [{"id": u.id, "nombre": u.nombre, "rol": u.rol} for u in resultado],
-        },
+        data=[{"id": u.id, "nombre": u.nombre, "rol": u.rol} for u in resultado],
     )
 
 
@@ -70,9 +67,8 @@ def agregar_usuario(
     datos: UsuarioCrear,
     db: Session = Depends(get_db),
 ):
-    roles_validos = ["Productor", "Comprador", "Administrador"]
-    if datos.rol not in roles_validos:
-        raise ErrorRolInvalido(datos.rol, roles_validos)
+    if datos.rol not in ROLES_VALIDOS:
+        raise ErrorRolInvalido(datos.rol, ROLES_VALIDOS)
 
     if db.query(models.Usuario).filter(models.Usuario.id == datos.id).first():
         raise ErrorUsuarioYaExiste(datos.id)
@@ -97,9 +93,8 @@ def editar_usuario(
     if id <= 0:
         return respuesta_error("El id debe ser un número positivo", status_code=400)
 
-    roles_validos = ["Productor", "Comprador", "Administrador"]
-    if nuevo_rol not in roles_validos:
-        raise ErrorRolInvalido(nuevo_rol, roles_validos)
+    if nuevo_rol not in ROLES_VALIDOS:
+        raise ErrorRolInvalido(nuevo_rol, ROLES_VALIDOS)
 
     usuario = db.query(models.Usuario).filter(models.Usuario.id == id).first()
     if not usuario:
@@ -113,5 +108,5 @@ def editar_usuario(
     db.refresh(usuario)
     return respuesta_ok(
         message="Usuario actualizado",
-        data={"activo": datos.activo, "id": usuario.id, "nombre": usuario.nombre, "rol": usuario.rol},
+        data={"id": usuario.id, "nombre": usuario.nombre, "rol": usuario.rol},
     )
