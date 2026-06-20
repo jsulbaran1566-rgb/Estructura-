@@ -2,14 +2,14 @@ from fastapi import Query, Depends
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
-from Utilidades.respuesta import respuesta_ok, respuesta_error
-from Esquemas.Esquemas import CompradorCrear
 from Excepciones.excepciones_compradores import (
     ErrorCompradorNoEncontrado,
     ErrorCompradorYaExiste,
     ErrorConfirmacionRequerida,
     ErrorIdInvalido,
 )
+from respuesta import respuesta_ok, respuesta_error
+from Esquemas.Esquemas import CompradorCrear
 
 
 def obtener_compradores(db: Session = Depends(get_db)):
@@ -53,6 +53,19 @@ def agregar_comprador(
     datos: CompradorCrear,
     db: Session = Depends(get_db),
 ):
+    # compradores.id es FK a usuarios.id: el usuario debe existir y tener rol 'Comprador'
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == datos.id).first()
+    if not usuario:
+        return respuesta_error(
+            f"No existe un usuario con id {datos.id}. Debe registrarse primero como usuario.",
+            status_code=404,
+        )
+    if usuario.rol != "Comprador":
+        return respuesta_error(
+            f"El usuario {datos.id} tiene rol '{usuario.rol}', no 'Comprador'.",
+            status_code=400,
+        )
+
     if db.query(models.Comprador).filter(models.Comprador.id == datos.id).first():
         raise ErrorCompradorYaExiste(datos.id)
 
