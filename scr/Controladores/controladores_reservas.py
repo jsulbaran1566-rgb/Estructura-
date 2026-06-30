@@ -106,10 +106,15 @@ def crear_reserva(
         raise ErrorReservaYaExiste(datos.id)
 
     # Verificar que el comprador exista y tenga rol Comprador
-    comprador = db.query(models.Usuario).filter(
-        models.Usuario.id == datos.comprador_id,
-        models.Usuario.rol == "Comprador",
-    ).first()
+    comprador = (
+        db.query(models.Usuario)
+        .join(models.Rol, models.Usuario.rol_id == models.Rol.id)
+        .filter(
+            models.Usuario.id == datos.comprador_id,
+            models.Rol.nombre == "Comprador",
+        )
+        .first()
+    )
     if not comprador:
         return respuesta_error(
             f"No se encontró un comprador con id {datos.comprador_id}",
@@ -184,10 +189,15 @@ def actualizar_estado_reserva(
 
     # Cambio de comprador
     if datos.comprador_id is not None:
-        comprador = db.query(models.Usuario).filter(
-            models.Usuario.id == datos.comprador_id,
-            models.Usuario.rol == "Comprador",
-        ).first()
+        comprador = (
+            db.query(models.Usuario)
+            .join(models.Rol, models.Usuario.rol_id == models.Rol.id)
+            .filter(
+                models.Usuario.id == datos.comprador_id,
+                models.Rol.nombre == "Comprador",
+            )
+            .first()
+        )
         if not comprador:
             return respuesta_error(
                 f"No se encontró un comprador activo con id {datos.comprador_id}",
