@@ -1,190 +1,324 @@
 -- ============================================================
--- ESTRUCTURA COMPLETA Y POBLADO DE LA BASE DE DATOS (AgroMercado)
+-- TABLA CATEGORIAS
 -- ============================================================
-
--- ------------------------------------------------------------
--- 1. CREACIÓN DE TABLAS (DDL)
--- ------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS categorias (
-    nombre VARCHAR(100) NOT NULL,
-    CONSTRAINT pk_categorias PRIMARY KEY (nombre)
+CREATE TABLE categorias (
+    nombre VARCHAR(100) PRIMARY KEY
 );
 
-CREATE TABLE IF NOT EXISTS usuarios (
-    id     INTEGER      NOT NULL,
-    nombre VARCHAR(150) NOT NULL,
-    rol    VARCHAR(50)  NOT NULL,
-    CONSTRAINT pk_usuarios  PRIMARY KEY (id),
-    CONSTRAINT chk_usuarios_rol CHECK (rol IN ('Productor', 'Comprador', 'Administrador'))
+-- ============================================================
+-- TABLA ROLES  (sin Supervisor)
+-- ============================================================
+CREATE TABLE roles (
+    id INTEGER PRIMARY KEY,
+    nombre VARCHAR(50) UNIQUE NOT NULL,
+    descripcion TEXT,
+    permisos TEXT
 );
 
-CREATE TABLE IF NOT EXISTS compradores (
-    id     INTEGER      NOT NULL,
+-- ============================================================
+-- TABLA USUARIOS  (absorbe los campos de compradores)
+-- ============================================================
+CREATE TABLE usuarios (
+    id INTEGER PRIMARY KEY,
+    tipo_documento VARCHAR(4) NOT NULL,
     nombre VARCHAR(150) NOT NULL,
+    correo VARCHAR(150) UNIQUE NOT NULL,
+    telefono VARCHAR(20) UNIQUE NOT NULL,
+    clave VARCHAR(255) NOT NULL,
+    direccion VARCHAR(200),
+    ciudad VARCHAR(100),          -- nuevo (era en compradores)
+    empresa VARCHAR(150),         -- nuevo (era en compradores)
+    rol VARCHAR(50) NOT NULL,
+    estado VARCHAR(20) DEFAULT 'Activo',
+    fecha_registro DATE DEFAULT CURRENT_DATE,
+
+    CONSTRAINT chk_tipo_documento
+        CHECK (tipo_documento IN ('CC', 'NIT', 'CE', 'PP')),
+
+    CONSTRAINT chk_usuario_rol
+        CHECK (rol IN ('Administrador','Productor','Comprador')),
+        -- 'Supervisor' eliminado
+
+    CONSTRAINT chk_usuario_estado
+        CHECK (estado IN ('Activo','Inactivo'))
+);
+
+-- ============================================================
+-- TABLA PROVEEDORES  (sin cambios)
+-- ============================================================
+CREATE TABLE proveedores (
+    id INTEGER PRIMARY KEY,
+    nombre VARCHAR(150) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
     ciudad VARCHAR(100) NOT NULL,
-    CONSTRAINT pk_compradores PRIMARY KEY (id),
-    CONSTRAINT fk_compradores_usuario FOREIGN KEY (id) REFERENCES usuarios(id) ON DELETE CASCADE
+    direccion VARCHAR(200),
+    telefono VARCHAR(20) NOT NULL,
+    correo VARCHAR(150) UNIQUE NOT NULL,
+    estado VARCHAR(20) DEFAULT 'Activo',
+
+    CONSTRAINT chk_proveedor_estado
+        CHECK (estado IN ('Activo','Inactivo'))
 );
 
-CREATE TABLE IF NOT EXISTS lotes (
-    id        INTEGER      NOT NULL,
-    producto  VARCHAR(150) NOT NULL,
-    cantidad  INTEGER      NOT NULL,
-    categoria VARCHAR(100) NOT NULL,
-    productor_id INTEGER   NOT NULL,
-    CONSTRAINT pk_lotes            PRIMARY KEY (id),
-    CONSTRAINT chk_lotes_cant      CHECK (cantidad > 0),
-    CONSTRAINT fk_lotes_categoria  FOREIGN KEY (categoria) REFERENCES categorias(nombre) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_lotes_productor  FOREIGN KEY (productor_id) REFERENCES usuarios(id) ON DELETE RESTRICT
-);
-
-CREATE TABLE IF NOT EXISTS reservas (
-    id           INTEGER      NOT NULL,
-    comprador_id INTEGER      NOT NULL,
-    lote_id      INTEGER      NOT NULL,
-    cantidad     INTEGER      NOT NULL,
-    fecha        VARCHAR(20)  NOT NULL DEFAULT '09/05/2026',
-    CONSTRAINT pk_reservas       PRIMARY KEY (id),
-    CONSTRAINT chk_reservas_cant CHECK (cantidad > 0),
-    CONSTRAINT fk_reservas_comprador FOREIGN KEY (comprador_id) REFERENCES compradores(id) ON DELETE RESTRICT,
-    CONSTRAINT fk_reservas_lote      FOREIGN KEY (lote_id) REFERENCES lotes(id) ON DELETE RESTRICT
-);
-
-CREATE TABLE IF NOT EXISTS historial_seguimiento (
-    id       SERIAL       NOT NULL,
-    accion   VARCHAR(200) NOT NULL,
-    lote     INTEGER,
+-- ============================================================
+-- TABLA LOTES  (sin cambios)
+-- ============================================================
+CREATE TABLE lotes (
+    id INTEGER PRIMARY KEY,
     producto VARCHAR(150) NOT NULL,
-    fecha    DATE         NOT NULL DEFAULT CURRENT_DATE,
-    CONSTRAINT pk_historial_seguimiento PRIMARY KEY (id),
-    CONSTRAINT fk_historial_lote FOREIGN KEY (lote) REFERENCES lotes(id) ON UPDATE CASCADE ON DELETE SET NULL
+    cantidad INTEGER NOT NULL,
+    categoria VARCHAR(100) NOT NULL,
+    productor_id INTEGER NOT NULL,
+    estado VARCHAR(20) DEFAULT 'Activo',
+    fecha_cosecha DATE,
+    kg_reservados INTEGER DEFAULT 0,
+    precio_kg NUMERIC(10,2),
+
+    CONSTRAINT chk_lote_cantidad
+        CHECK (cantidad > 0),
+    CONSTRAINT chk_lote_reservados
+        CHECK (kg_reservados >= 0),
+    CONSTRAINT chk_lote_estado
+        CHECK (estado IN ('Activo','Inactivo')),
+
+    CONSTRAINT fk_lote_categoria
+        FOREIGN KEY (categoria)
+        REFERENCES categorias(nombre)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+
+    CONSTRAINT fk_lote_productor
+        FOREIGN KEY (productor_id)
+        REFERENCES usuarios(id)
+        ON DELETE RESTRICT
 );
 
-CREATE TABLE IF NOT EXISTS compras (
-    id           INTEGER      NOT NULL,
-    comprador_id INTEGER      NOT NULL,
-    lote_id      INTEGER      NOT NULL,
-    cantidad     INTEGER      NOT NULL,
-    fecha        DATE         NOT NULL DEFAULT CURRENT_DATE,
-    CONSTRAINT pk_compras      PRIMARY KEY (id),
-    CONSTRAINT chk_compras_cant CHECK (cantidad > 0),
-    CONSTRAINT fk_compras_comprador FOREIGN KEY (comprador_id) REFERENCES compradores(id),
-    CONSTRAINT fk_compras_lote      FOREIGN KEY (lote_id) REFERENCES lotes(id)
+-- ============================================================
+-- TABLA RESERVAS  (comprador_id → usuarios directamente)
+-- ============================================================
+CREATE TABLE reservas (
+    id INTEGER PRIMARY KEY,
+    comprador_id INTEGER NOT NULL,
+    lote_id INTEGER NOT NULL,
+    cantidad INTEGER NOT NULL,
+    fecha DATE DEFAULT CURRENT_DATE,
+    estado VARCHAR(20) DEFAULT 'Pendiente',
+
+    CONSTRAINT chk_reserva_cantidad
+        CHECK (cantidad > 0),
+    CONSTRAINT chk_reserva_estado
+        CHECK (estado IN ('Pendiente','Confirmada','Cancelada','Entregada')),
+
+    CONSTRAINT fk_reserva_comprador
+        FOREIGN KEY (comprador_id)
+        REFERENCES usuarios(id)   -- antes era compradores(id)
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_reserva_lote
+        FOREIGN KEY (lote_id)
+        REFERENCES lotes(id)
+        ON DELETE RESTRICT
 );
 
-CREATE TABLE IF NOT EXISTS ventas (
-    id           INTEGER      NOT NULL,
-    vendedor_id  INTEGER      NOT NULL,
-    lote_id      INTEGER      NOT NULL,
-    cantidad     INTEGER      NOT NULL,
-    fecha        DATE         NOT NULL DEFAULT CURRENT_DATE,
-    CONSTRAINT pk_ventas      PRIMARY KEY (id),
-    CONSTRAINT chk_ventas_cant CHECK (cantidad > 0),
-    CONSTRAINT fk_ventas_vendedor  FOREIGN KEY (vendedor_id) REFERENCES usuarios(id),
-    CONSTRAINT fk_ventas_lote      FOREIGN KEY (lote_id) REFERENCES lotes(id)
+-- ============================================================
+-- TABLA HISTORIAL SEGUIMIENTO  (sin cambios)
+-- ============================================================
+CREATE TABLE historial_seguimiento (
+    id SERIAL PRIMARY KEY,
+    accion VARCHAR(200) NOT NULL,
+    lote INTEGER,
+    producto VARCHAR(150) NOT NULL,
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_historial_lote
+        FOREIGN KEY (lote)
+        REFERENCES lotes(id)
+        ON UPDATE CASCADE ON DELETE SET NULL
 );
 
-CREATE TABLE IF NOT EXISTS historial_reservas (
-    id         SERIAL       NOT NULL,
-    reserva_id INTEGER      NOT NULL,
-    estado     VARCHAR(50)  NOT NULL, 
-    fecha      VARCHAR(20)  NOT NULL DEFAULT '09/05/2026',
-    CONSTRAINT pk_historial_reservas PRIMARY KEY (id),
-    CONSTRAINT fk_historial_reserva_id FOREIGN KEY (reserva_id) REFERENCES reservas(id) ON DELETE CASCADE
+-- ============================================================
+-- TABLA COMPRAS  (comprador_id → usuarios directamente)
+-- ============================================================
+CREATE TABLE compras (
+    id INTEGER PRIMARY KEY,
+    comprador_id INTEGER NOT NULL,
+    lote_id INTEGER NOT NULL,
+    cantidad INTEGER NOT NULL,
+    fecha DATE DEFAULT CURRENT_DATE,
+    total NUMERIC(12,2),
+
+    CONSTRAINT chk_compra_cantidad
+        CHECK (cantidad > 0),
+
+    CONSTRAINT fk_compra_comprador
+        FOREIGN KEY (comprador_id)
+        REFERENCES usuarios(id),   -- antes era compradores(id)
+
+    CONSTRAINT fk_compra_lote
+        FOREIGN KEY (lote_id)
+        REFERENCES lotes(id)
 );
 
+-- ============================================================
+-- TABLA VENTAS  (sin cambios)
+-- ============================================================
+CREATE TABLE ventas (
+    id INTEGER PRIMARY KEY,
+    vendedor_id INTEGER NOT NULL,
+    lote_id INTEGER NOT NULL,
+    cantidad INTEGER NOT NULL,
+    fecha DATE DEFAULT CURRENT_DATE,
+    total NUMERIC(12,2),
 
--- ------------------------------------------------------------
--- 2. INSERCIÓN DE DATOS SIMULADOS (DML)
--- ------------------------------------------------------------
+    CONSTRAINT chk_venta_cantidad
+        CHECK (cantidad > 0),
 
--- Insertar Categorías
+    CONSTRAINT fk_venta_vendedor
+        FOREIGN KEY (vendedor_id)
+        REFERENCES usuarios(id),
+
+    CONSTRAINT fk_venta_lote
+        FOREIGN KEY (lote_id)
+        REFERENCES lotes(id)
+);
+
+-- ============================================================
+-- TABLA HISTORIAL RESERVAS  (sin cambios)
+-- ============================================================
+CREATE TABLE historial_reservas (
+    id SERIAL PRIMARY KEY,
+    reserva_id INTEGER NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_historial_estado
+        CHECK (estado IN ('Pendiente','Confirmada','Cancelada','Entregada')),
+
+    CONSTRAINT fk_historial_reserva
+        FOREIGN KEY (reserva_id)
+        REFERENCES reservas(id)
+        ON DELETE CASCADE
+);
+
+-- ============================================================
+-- INSERT CATEGORIAS
+-- ============================================================
 INSERT INTO categorias (nombre) VALUES
-('Hortaliza'),
-('Fruta'),
-('Tuberculo'),
-('Cereal'),
-('Leguminosa');
+('Hortaliza'),('Fruta'),('Tuberculo'),('Cereal'),('Leguminosa');
 
--- Insertar Usuarios
-INSERT INTO usuarios (id, nombre, rol) VALUES
-(1, 'Carlos Mora', 'Administrador'),
-(2, 'Finca El Paraiso SAS', 'Productor'),
-(3, 'Agro Santa Marta', 'Productor'),
-(4, 'Finca Los Andes', 'Productor'),
-(5, 'Restaurante La Plaza', 'Comprador'),
-(6, 'Hotel Campestre', 'Comprador'),
-(7, 'Distribuidora Norte', 'Comprador'),
-(8, 'Maria Gonzalez', 'Productor'),
-(9, 'Supermercado Central', 'Comprador'),
-(10, 'Juan Ramirez', 'Administrador');
+-- ============================================================
+-- INSERT ROLES  (sin Supervisor)
+-- ============================================================
+INSERT INTO roles VALUES
+(1, 'Administrador', 'Acceso total al sistema',             'Ver, Crear, Editar, Eliminar'),
+(2, 'Productor',     'Gestiona lotes y actualiza cosechas', 'Ver, Crear, Editar'),
+(3, 'Comprador',     'Explora lotes y crea reservas',       'Ver, Crear');
 
--- Insertar Compradores
-INSERT INTO compradores (id, nombre, ciudad) VALUES
-(5, 'Restaurante La Plaza', 'Bogota'),
-(6, 'Hotel Campestre', 'Medellin'),
-(7, 'Distribuidora Norte', 'Barranquilla'),
-(9, 'Supermercado Central', 'Cali');
+-- ============================================================
+-- INSERT USUARIOS  (ciudad/empresa integradas en los compradores)
+-- ============================================================
+INSERT INTO usuarios
+(id, tipo_documento, nombre, correo, telefono, rol, clave, estado, direccion, ciudad, empresa)
+VALUES
+(1,  'CC',  'Carlos Mora',          'admin@agrodirecto.com',  '3001000001', 'Administrador', 'admin123', 'Activo',   'Bogota',       NULL,           NULL),
+(2,  'NIT', 'Finca El Paraiso SAS', 'finca.paraiso@campo.com','3002000002', 'Productor',     'prod123',  'Activo',   'Medellin',     NULL,           NULL),
+(3,  'NIT', 'Agro Santa Marta',     'agro.santamarta@campo.com','3003000003','Productor',    'prod456',  'Activo',   'Santa Marta',  NULL,           NULL),
+(4,  'NIT', 'Finca Los Andes',      'losandes@campo.com',     '3004000004', 'Productor',     'prod789',  'Activo',   'Cali',         NULL,           NULL),
+(5,  'NIT', 'Restaurante La Plaza', 'compras@laplaza.com',    '3005000005', 'Comprador',     'comp123',  'Activo',   'Centro',       'Bogota',       'Restaurante La Plaza'),
+(6,  'NIT', 'Hotel Campestre',      'suministros@hotelc.com', '3006000006', 'Comprador',     'comp456',  'Activo',   'El Poblado',   'Medellin',     'Hotel Campestre'),
+(7,  'NIT', 'Distribuidora Norte',  'pedidos@distnorte.com',  '3007000007', 'Comprador',     'comp789',  'Activo',   'Norte',        'Barranquilla', 'Distribuidora Norte'),
+(8,  'CC',  'Maria Gonzalez',       'maria.g@campo.com',      '3008000008', 'Productor',     'prod000',  'Inactivo', 'Pereira',      NULL,           NULL),
+(9,  'NIT', 'Supermercado Central', 'central@super.com',      '3009000009', 'Comprador',     'comp000',  'Activo',   'Sur',          'Cali',         'Supermercado Central'),
+(10, 'CC',  'Juan Ramirez',         'juan.r@agro.com',        '3010000010', 'Administrador', 'admin456', 'Activo',   'Bogota',       NULL,           NULL);
 
--- Insertar Lotes
-INSERT INTO lotes (id, producto, cantidad, categoria, productor_id) VALUES
-(1, 'Tomate Chonto', 2000, 'Hortaliza', 2),
-(2, 'Aguacate Hass', 3000, 'Fruta', 3),
-(3, 'Papa Pastusa', 5000, 'Tuberculo', 4),
-(4, 'Maiz Amarillo', 4000, 'Cereal', 2),
-(5, 'Frijol Cargamanto', 1500, 'Leguminosa', 4),
-(6, 'Brocoli', 800, 'Hortaliza', 2),
-(7, 'Mango Tommy', 2500, 'Fruta', 3),
-(8, 'Yuca', 3500, 'Tuberculo', 4),
-(9, 'Arveja Verde', 1000, 'Leguminosa', 2),
-(10, 'Platano Dominico', 4500, 'Fruta', 3);
+-- ============================================================
+-- INSERT PROVEEDORES  (sin cambios)
+-- ============================================================
+INSERT INTO proveedores VALUES
+(1,'TransCarga SAS',   'Logistica',    'Medellin',     'Zona Industrial','3101000001','ops@transcarga.com',  'Activo'),
+(2,'FrioExpress Ltda', 'Refrigeracion','Bogota',        'Fontibon',       '3101000002','frio@express.com',    'Activo'),
+(3,'AgroInsumos del Sur','Insumos',    'Cali',          'Centro',         '3101000003','ventas@agroinsumos.com','Activo'),
+(4,'EmpaqueStar',      'Empaque',      'Bucaramanga',   'Cabecera',       '3101000004','info@empaquestar.com', 'Inactivo'),
+(5,'LogiCampo SAS',    'Logistica',    'Pereira',       'Industrial',     '3101000005','logicampo@campo.com',  'Activo'),
+(6,'Semillas del Llano','Insumos',     'Villavicencio', 'Centro',         '3101000006','semillas@llano.com',   'Activo'),
+(7,'CajaFlex Colombia','Empaque',      'Manizales',     'Norte',          '3101000007','cajaflex@col.com',     'Activo'),
+(8,'ColdChain Andina', 'Refrigeracion','Bogota',        'Puente Aranda',  '3101000008','cold@andina.com',      'Inactivo');
 
--- Insertar Reservas
-INSERT INTO reservas (id, comprador_id, lote_id, cantidad, fecha) VALUES
-(1, 5, 1, 300, '2026-07-15'),
-(2, 6, 2, 500, '2026-08-01'),
-(3, 7, 3, 400, '2026-07-20'),
-(4, 5, 5, 200, '2026-08-25'),
-(5, 9, 2, 700, '2026-08-01'),
-(6, 6, 6, 200, '2026-07-05'),
-(7, 7, 7, 300, '2026-10-01'),
-(8, 9, 3, 400, '2026-07-20'),
-(9, 5, 10, 600, '2026-07-28');
+-- ============================================================
+-- INSERT LOTES  (sin cambios)
+-- ============================================================
+INSERT INTO lotes
+(id,producto,cantidad,categoria,productor_id,estado,fecha_cosecha,kg_reservados,precio_kg)
+VALUES
+(1,'Tomate Chonto',    2000,'Hortaliza', 2,'Activo',  '2026-07-15',500, 3000),
+(2,'Aguacate Hass',    3000,'Fruta',     3,'Activo',  '2026-08-01',1200,7500),
+(3,'Papa Pastusa',     5000,'Tuberculo', 4,'Activo',  '2026-07-20',800, 2500),
+(4,'Maiz Amarillo',    4000,'Cereal',    2,'Activo',  '2026-09-10',0,   1800),
+(5,'Frijol Cargamanto',1500,'Leguminosa',4,'Activo',  '2026-08-25',400, 5000),
+(6,'Brocoli',           800,'Hortaliza', 2,'Activo',  '2026-07-05',200, 4200),
+(7,'Mango Tommy',      2500,'Fruta',     3,'Activo',  '2026-10-01',600, 3900),
+(8,'Yuca',             3500,'Tuberculo', 4,'Inactivo','2026-06-30',3500,1500),
+(9,'Arveja Verde',     1000,'Leguminosa',2,'Activo',  '2026-08-15',0,   6000),
+(10,'Platano Dominico',4500,'Fruta',     3,'Activo',  '2026-07-28',900, 2000);
 
--- Insertar Historial de Seguimiento (IDs autogenerados por SERIAL)
-INSERT INTO historial_seguimiento (accion, lote, producto, fecha) VALUES
-('Siembra registrada', 1, 'Tomate Chonto', '2026-03-10'),
-('Control de plagas aplicado', 1, 'Tomate Chonto', '2026-04-15'),
-('Riego programado completado', 2, 'Aguacate Hass', '2026-04-20'),
-('Inicio de floracion confirmada', 2, 'Aguacate Hass', '2026-05-01'),
-('Abono organico aplicado', 3, 'Papa Pastusa', '2026-04-25'),
-('Cosecha iniciada', 8, 'Yuca', '2026-06-20'),
-('Entrega al comprador completada', 8, 'Yuca', '2026-06-30'),
-('Siembra registrada', 4, 'Maiz Amarillo', '2026-05-12'),
-('Inspección fitosanitaria aprobada', 5, 'Frijol Cargamanto', '2026-05-20'),
-('Lote habilitado para reservas', 9, 'Arveja Verde', '2026-06-01'),
-('Primer corte de muestra tomado', 6, 'Brocoli', '2026-06-10'),
-('Cosecha estimada confirmada', 7, 'Mango Tommy', '2026-06-15');
+-- ============================================================
+-- INSERT RESERVAS  (comprador_id apunta a usuarios)
+-- ============================================================
+INSERT INTO reservas VALUES
+(1,5,1,300,'2026-07-15','Pendiente'),
+(2,6,2,500,'2026-08-01','Pendiente'),
+(3,7,3,400,'2026-07-20','Pendiente'),
+(4,5,5,200,'2026-08-25','Pendiente'),
+(5,9,2,700,'2026-08-01','Entregada'),
+(6,6,6,200,'2026-07-05','Confirmada'),
+(7,7,7,300,'2026-10-01','Pendiente'),
+(8,9,3,400,'2026-07-20','Cancelada'),
+(9,5,10,600,'2026-07-28','Pendiente');
 
--- Insertar Historial de Reservas (IDs autogenerados por SERIAL)
-INSERT INTO historial_reservas (reserva_id, estado, fecha) VALUES
-(1, 'Pendiente', '2026-06-01'),
-(1, 'Confirmada', '2026-06-05'),
-(2, 'Pendiente', '2026-06-02'),
-(2, 'Confirmada', '2026-06-06'),
-(3, 'Pendiente', '2026-06-03'),
-(4, 'Confirmada', '2026-06-07'),
-(5, 'Entregada', '2026-06-10'),
-(6, 'Confirmada', '2026-06-08'),
-(7, 'Pendiente', '2026-06-12'),
-(8, 'Cancelada', '2026-06-13');
+-- ============================================================
+-- INSERT HISTORIAL SEGUIMIENTO  (sin cambios)
+-- ============================================================
+INSERT INTO historial_seguimiento
+(id,accion,lote,producto,fecha)
+VALUES
+(1,'Siembra registrada',                  1,'Tomate Chonto','2026-03-10'),
+(2,'Control de plagas aplicado',          1,'Tomate Chonto','2026-04-15'),
+(3,'Riego programado completado',         2,'Aguacate Hass','2026-04-20'),
+(4,'Inicio de floracion confirmada',      2,'Aguacate Hass','2026-05-01'),
+(5,'Abono organico aplicado',             3,'Papa Pastusa', '2026-04-25'),
+(6,'Cosecha iniciada',                    8,'Yuca',         '2026-06-20'),
+(7,'Entrega al comprador completada',     8,'Yuca',         '2026-06-30'),
+(8,'Siembra registrada',                  4,'Maiz Amarillo','2026-05-12'),
+(9,'Inspección fitosanitaria aprobada',   5,'Frijol Cargamanto','2026-05-20'),
+(10,'Lote habilitado para reservas',      9,'Arveja Verde', '2026-06-01'),
+(11,'Primer corte de muestra tomado',     6,'Brocoli',      '2026-06-10'),
+(12,'Cosecha estimada confirmada',        7,'Mango Tommy',  '2026-06-15');
 
--- Insertar Compras
-INSERT INTO compras (id, comprador_id, lote_id, cantidad, fecha) VALUES
-(1, 5, 8, 1000, '2026-06-30'),
-(2, 6, 8, 2500, '2026-06-30');
+-- ============================================================
+-- INSERT COMPRAS  (comprador_id apunta a usuarios)
+-- ============================================================
+INSERT INTO compras VALUES
+(1,5,8,1000,'2026-06-30',1500000),
+(2,6,8,2500,'2026-06-30',3750000);
 
--- Insertar Ventas
-INSERT INTO ventas (id, vendedor_id, lote_id, cantidad, fecha) VALUES
-(1, 4, 8, 3500, '2026-06-30');
+-- ============================================================
+-- INSERT VENTAS  (sin cambios)
+-- ============================================================
+INSERT INTO ventas VALUES
+(1,4,8,3500,'2026-06-30',5250000);
+
+-- ============================================================
+-- INSERT HISTORIAL RESERVAS  (sin cambios)
+-- ============================================================
+INSERT INTO historial_reservas
+(id,reserva_id,estado,fecha)
+VALUES
+(1,1,'Pendiente', '2026-06-01'),
+(2,1,'Confirmada','2026-06-05'),
+(3,2,'Pendiente', '2026-06-02'),
+(4,2,'Confirmada','2026-06-06'),
+(5,3,'Pendiente', '2026-06-03'),
+(6,4,'Confirmada','2026-06-07'),
+(7,5,'Entregada', '2026-06-10'),
+(8,6,'Confirmada','2026-06-08'),
+(9,7,'Pendiente', '2026-06-12'),
+(10,8,'Cancelada','2026-06-13');
