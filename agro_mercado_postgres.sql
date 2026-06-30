@@ -1,4 +1,9 @@
 -- ============================================================
+-- AgroMercado API — Script completo de base de datos PostgreSQL
+-- Alineado 1:1 con scr/Modelos/models.py
+-- ============================================================
+
+-- ============================================================
 -- TABLA CATEGORIAS
 -- ============================================================
 CREATE TABLE categorias (
@@ -6,7 +11,15 @@ CREATE TABLE categorias (
 );
 
 -- ============================================================
--- TABLA ROLES  (sin Supervisor)
+-- TABLA TIPOS_DOCUMENTO
+-- ============================================================
+CREATE TABLE tipos_documento (
+    codigo VARCHAR(4) PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL
+);
+
+-- ============================================================
+-- TABLA ROLES
 -- ============================================================
 CREATE TABLE roles (
     id INTEGER PRIMARY KEY,
@@ -16,7 +29,7 @@ CREATE TABLE roles (
 );
 
 -- ============================================================
--- TABLA USUARIOS  (absorbe los campos de compradores)
+-- TABLA USUARIOS  (rol_id en vez de rol VARCHAR)
 -- ============================================================
 CREATE TABLE usuarios (
     id INTEGER PRIMARY KEY,
@@ -26,25 +39,28 @@ CREATE TABLE usuarios (
     telefono VARCHAR(20) UNIQUE NOT NULL,
     clave VARCHAR(255) NOT NULL,
     direccion VARCHAR(200),
-    ciudad VARCHAR(100),          -- nuevo (era en compradores)
-    empresa VARCHAR(150),         -- nuevo (era en compradores)
-    rol VARCHAR(50) NOT NULL,
+    ciudad VARCHAR(100),
+    empresa VARCHAR(150),
+    rol_id INTEGER NOT NULL,
     estado VARCHAR(20) DEFAULT 'Activo',
     fecha_registro DATE DEFAULT CURRENT_DATE,
 
-    CONSTRAINT chk_tipo_documento
-        CHECK (tipo_documento IN ('CC', 'NIT', 'CE', 'PP')),
+    CONSTRAINT chk_usuarios_estado
+        CHECK (estado IN ('Activo','Inactivo')),
 
-    CONSTRAINT chk_usuario_rol
-        CHECK (rol IN ('Administrador','Productor','Comprador')),
-        -- 'Supervisor' eliminado
+    CONSTRAINT fk_usuario_tipo_documento
+        FOREIGN KEY (tipo_documento)
+        REFERENCES tipos_documento(codigo)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
 
-    CONSTRAINT chk_usuario_estado
-        CHECK (estado IN ('Activo','Inactivo'))
+    CONSTRAINT fk_usuario_rol
+        FOREIGN KEY (rol_id)
+        REFERENCES roles(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
 -- ============================================================
--- TABLA PROVEEDORES  (sin cambios)
+-- TABLA PROVEEDORES
 -- ============================================================
 CREATE TABLE proveedores (
     id INTEGER PRIMARY KEY,
@@ -61,7 +77,7 @@ CREATE TABLE proveedores (
 );
 
 -- ============================================================
--- TABLA LOTES  (sin cambios)
+-- TABLA LOTES
 -- ============================================================
 CREATE TABLE lotes (
     id INTEGER PRIMARY KEY,
@@ -93,7 +109,7 @@ CREATE TABLE lotes (
 );
 
 -- ============================================================
--- TABLA RESERVAS  (comprador_id → usuarios directamente)
+-- TABLA RESERVAS  (comprador_id -> usuarios)
 -- ============================================================
 CREATE TABLE reservas (
     id INTEGER PRIMARY KEY,
@@ -110,7 +126,7 @@ CREATE TABLE reservas (
 
     CONSTRAINT fk_reserva_comprador
         FOREIGN KEY (comprador_id)
-        REFERENCES usuarios(id)   -- antes era compradores(id)
+        REFERENCES usuarios(id)
         ON DELETE RESTRICT,
 
     CONSTRAINT fk_reserva_lote
@@ -120,7 +136,7 @@ CREATE TABLE reservas (
 );
 
 -- ============================================================
--- TABLA HISTORIAL SEGUIMIENTO  (sin cambios)
+-- TABLA HISTORIAL SEGUIMIENTO
 -- ============================================================
 CREATE TABLE historial_seguimiento (
     id SERIAL PRIMARY KEY,
@@ -136,7 +152,7 @@ CREATE TABLE historial_seguimiento (
 );
 
 -- ============================================================
--- TABLA COMPRAS  (comprador_id → usuarios directamente)
+-- TABLA COMPRAS  (comprador_id -> usuarios)
 -- ============================================================
 CREATE TABLE compras (
     id INTEGER PRIMARY KEY,
@@ -151,7 +167,7 @@ CREATE TABLE compras (
 
     CONSTRAINT fk_compra_comprador
         FOREIGN KEY (comprador_id)
-        REFERENCES usuarios(id),   -- antes era compradores(id)
+        REFERENCES usuarios(id),
 
     CONSTRAINT fk_compra_lote
         FOREIGN KEY (lote_id)
@@ -159,7 +175,7 @@ CREATE TABLE compras (
 );
 
 -- ============================================================
--- TABLA VENTAS  (sin cambios)
+-- TABLA VENTAS
 -- ============================================================
 CREATE TABLE ventas (
     id INTEGER PRIMARY KEY,
@@ -182,7 +198,7 @@ CREATE TABLE ventas (
 );
 
 -- ============================================================
--- TABLA HISTORIAL RESERVAS  (sin cambios)
+-- TABLA HISTORIAL RESERVAS
 -- ============================================================
 CREATE TABLE historial_reservas (
     id SERIAL PRIMARY KEY,
@@ -206,108 +222,117 @@ INSERT INTO categorias (nombre) VALUES
 ('Hortaliza'),('Fruta'),('Tuberculo'),('Cereal'),('Leguminosa');
 
 -- ============================================================
--- INSERT ROLES  (sin Supervisor)
+-- INSERT TIPOS_DOCUMENTO
 -- ============================================================
-INSERT INTO roles VALUES
+INSERT INTO tipos_documento (codigo, nombre) VALUES
+('CC',  'Cedula de Ciudadania'),
+('NIT', 'Numero de Identificacion Tributaria'),
+('CE',  'Cedula de Extranjeria'),
+('PP',  'Pasaporte');
+
+-- ============================================================
+-- INSERT ROLES
+-- ============================================================
+INSERT INTO roles (id, nombre, descripcion, permisos) VALUES
 (1, 'Administrador', 'Acceso total al sistema',             'Ver, Crear, Editar, Eliminar'),
 (2, 'Productor',     'Gestiona lotes y actualiza cosechas', 'Ver, Crear, Editar'),
 (3, 'Comprador',     'Explora lotes y crea reservas',       'Ver, Crear');
 
 -- ============================================================
--- INSERT USUARIOS  (ciudad/empresa integradas en los compradores)
+-- INSERT USUARIOS  (rol_id en vez de rol: 1=Administrador, 2=Productor, 3=Comprador)
 -- ============================================================
 INSERT INTO usuarios
-(id, tipo_documento, nombre, correo, telefono, rol, clave, estado, direccion, ciudad, empresa)
+(id, tipo_documento, nombre, correo, telefono, clave, direccion, ciudad, empresa, rol_id, estado)
 VALUES
-(1,  'CC',  'Carlos Mora',          'admin@agrodirecto.com',  '3001000001', 'Administrador', 'admin123', 'Activo',   'Bogota',       NULL,           NULL),
-(2,  'NIT', 'Finca El Paraiso SAS', 'finca.paraiso@campo.com','3002000002', 'Productor',     'prod123',  'Activo',   'Medellin',     NULL,           NULL),
-(3,  'NIT', 'Agro Santa Marta',     'agro.santamarta@campo.com','3003000003','Productor',    'prod456',  'Activo',   'Santa Marta',  NULL,           NULL),
-(4,  'NIT', 'Finca Los Andes',      'losandes@campo.com',     '3004000004', 'Productor',     'prod789',  'Activo',   'Cali',         NULL,           NULL),
-(5,  'NIT', 'Restaurante La Plaza', 'compras@laplaza.com',    '3005000005', 'Comprador',     'comp123',  'Activo',   'Centro',       'Bogota',       'Restaurante La Plaza'),
-(6,  'NIT', 'Hotel Campestre',      'suministros@hotelc.com', '3006000006', 'Comprador',     'comp456',  'Activo',   'El Poblado',   'Medellin',     'Hotel Campestre'),
-(7,  'NIT', 'Distribuidora Norte',  'pedidos@distnorte.com',  '3007000007', 'Comprador',     'comp789',  'Activo',   'Norte',        'Barranquilla', 'Distribuidora Norte'),
-(8,  'CC',  'Maria Gonzalez',       'maria.g@campo.com',      '3008000008', 'Productor',     'prod000',  'Inactivo', 'Pereira',      NULL,           NULL),
-(9,  'NIT', 'Supermercado Central', 'central@super.com',      '3009000009', 'Comprador',     'comp000',  'Activo',   'Sur',          'Cali',         'Supermercado Central'),
-(10, 'CC',  'Juan Ramirez',         'juan.r@agro.com',        '3010000010', 'Administrador', 'admin456', 'Activo',   'Bogota',       NULL,           NULL);
+(1,  'CC',  'Carlos Mora',          'admin@agrodirecto.com',    '3001000001', 'admin123', 'Bogota',       NULL,           NULL,                    1, 'Activo'),
+(2,  'NIT', 'Finca El Paraiso SAS', 'finca.paraiso@campo.com',  '3002000002', 'prod123',  'Medellin',     NULL,           NULL,                    2, 'Activo'),
+(3,  'NIT', 'Agro Santa Marta',     'agro.santamarta@campo.com','3003000003', 'prod456',  'Santa Marta',  NULL,           NULL,                    2, 'Activo'),
+(4,  'NIT', 'Finca Los Andes',      'losandes@campo.com',       '3004000004', 'prod789',  'Cali',         NULL,           NULL,                    2, 'Activo'),
+(5,  'NIT', 'Restaurante La Plaza', 'compras@laplaza.com',      '3005000005', 'comp123',  'Centro',       'Bogota',       'Restaurante La Plaza',  3, 'Activo'),
+(6,  'NIT', 'Hotel Campestre',      'suministros@hotelc.com',   '3006000006', 'comp456',  'El Poblado',   'Medellin',     'Hotel Campestre',       3, 'Activo'),
+(7,  'NIT', 'Distribuidora Norte',  'pedidos@distnorte.com',    '3007000007', 'comp789',  'Norte',        'Barranquilla', 'Distribuidora Norte',   3, 'Activo'),
+(8,  'CC',  'Maria Gonzalez',       'maria.g@campo.com',        '3008000008', 'prod000',  'Pereira',      NULL,           NULL,                    2, 'Inactivo'),
+(9,  'NIT', 'Supermercado Central', 'central@super.com',        '3009000009', 'comp000',  'Sur',          'Cali',         'Supermercado Central',  3, 'Activo'),
+(10, 'CC',  'Juan Ramirez',         'juan.r@agro.com',          '3010000010', 'admin456', 'Bogota',       NULL,           NULL,                    1, 'Activo');
 
 -- ============================================================
--- INSERT PROVEEDORES  (sin cambios)
+-- INSERT PROVEEDORES
 -- ============================================================
-INSERT INTO proveedores VALUES
-(1,'TransCarga SAS',   'Logistica',    'Medellin',     'Zona Industrial','3101000001','ops@transcarga.com',  'Activo'),
-(2,'FrioExpress Ltda', 'Refrigeracion','Bogota',        'Fontibon',       '3101000002','frio@express.com',    'Activo'),
-(3,'AgroInsumos del Sur','Insumos',    'Cali',          'Centro',         '3101000003','ventas@agroinsumos.com','Activo'),
-(4,'EmpaqueStar',      'Empaque',      'Bucaramanga',   'Cabecera',       '3101000004','info@empaquestar.com', 'Inactivo'),
-(5,'LogiCampo SAS',    'Logistica',    'Pereira',       'Industrial',     '3101000005','logicampo@campo.com',  'Activo'),
-(6,'Semillas del Llano','Insumos',     'Villavicencio', 'Centro',         '3101000006','semillas@llano.com',   'Activo'),
-(7,'CajaFlex Colombia','Empaque',      'Manizales',     'Norte',          '3101000007','cajaflex@col.com',     'Activo'),
-(8,'ColdChain Andina', 'Refrigeracion','Bogota',        'Puente Aranda',  '3101000008','cold@andina.com',      'Inactivo');
+INSERT INTO proveedores (id, nombre, tipo, ciudad, direccion, telefono, correo, estado) VALUES
+(1,'TransCarga SAS',     'Logistica',     'Medellin',      'Zona Industrial','3101000001','ops@transcarga.com',    'Activo'),
+(2,'FrioExpress Ltda',   'Refrigeracion', 'Bogota',        'Fontibon',       '3101000002','frio@express.com',      'Activo'),
+(3,'AgroInsumos del Sur','Insumos',       'Cali',          'Centro',         '3101000003','ventas@agroinsumos.com','Activo'),
+(4,'EmpaqueStar',        'Empaque',       'Bucaramanga',   'Cabecera',       '3101000004','info@empaquestar.com',  'Inactivo'),
+(5,'LogiCampo SAS',      'Logistica',     'Pereira',       'Industrial',     '3101000005','logicampo@campo.com',   'Activo'),
+(6,'Semillas del Llano', 'Insumos',       'Villavicencio', 'Centro',         '3101000006','semillas@llano.com',    'Activo'),
+(7,'CajaFlex Colombia',  'Empaque',       'Manizales',     'Norte',          '3101000007','cajaflex@col.com',      'Activo'),
+(8,'ColdChain Andina',   'Refrigeracion', 'Bogota',        'Puente Aranda',  '3101000008','cold@andina.com',       'Inactivo');
 
 -- ============================================================
--- INSERT LOTES  (sin cambios)
+-- INSERT LOTES
 -- ============================================================
 INSERT INTO lotes
 (id,producto,cantidad,categoria,productor_id,estado,fecha_cosecha,kg_reservados,precio_kg)
 VALUES
-(1,'Tomate Chonto',    2000,'Hortaliza', 2,'Activo',  '2026-07-15',500, 3000),
-(2,'Aguacate Hass',    3000,'Fruta',     3,'Activo',  '2026-08-01',1200,7500),
-(3,'Papa Pastusa',     5000,'Tuberculo', 4,'Activo',  '2026-07-20',800, 2500),
-(4,'Maiz Amarillo',    4000,'Cereal',    2,'Activo',  '2026-09-10',0,   1800),
-(5,'Frijol Cargamanto',1500,'Leguminosa',4,'Activo',  '2026-08-25',400, 5000),
-(6,'Brocoli',           800,'Hortaliza', 2,'Activo',  '2026-07-05',200, 4200),
-(7,'Mango Tommy',      2500,'Fruta',     3,'Activo',  '2026-10-01',600, 3900),
-(8,'Yuca',             3500,'Tuberculo', 4,'Inactivo','2026-06-30',3500,1500),
-(9,'Arveja Verde',     1000,'Leguminosa',2,'Activo',  '2026-08-15',0,   6000),
-(10,'Platano Dominico',4500,'Fruta',     3,'Activo',  '2026-07-28',900, 2000);
+(1, 'Tomate Chonto',    2000,'Hortaliza', 2,'Activo',  '2026-07-15',500, 3000),
+(2, 'Aguacate Hass',    3000,'Fruta',     3,'Activo',  '2026-08-01',1200,7500),
+(3, 'Papa Pastusa',     5000,'Tuberculo', 4,'Activo',  '2026-07-20',800, 2500),
+(4, 'Maiz Amarillo',    4000,'Cereal',    2,'Activo',  '2026-09-10',0,   1800),
+(5, 'Frijol Cargamanto',1500,'Leguminosa',4,'Activo',  '2026-08-25',400, 5000),
+(6, 'Brocoli',           800,'Hortaliza', 2,'Activo',  '2026-07-05',200, 4200),
+(7, 'Mango Tommy',      2500,'Fruta',     3,'Activo',  '2026-10-01',600, 3900),
+(8, 'Yuca',             3500,'Tuberculo', 4,'Inactivo','2026-06-30',3500,1500),
+(9, 'Arveja Verde',     1000,'Leguminosa',2,'Activo',  '2026-08-15',0,   6000),
+(10,'Platano Dominico', 4500,'Fruta',     3,'Activo',  '2026-07-28',900, 2000);
 
 -- ============================================================
 -- INSERT RESERVAS  (comprador_id apunta a usuarios)
 -- ============================================================
-INSERT INTO reservas VALUES
-(1,5,1,300,'2026-07-15','Pendiente'),
-(2,6,2,500,'2026-08-01','Pendiente'),
-(3,7,3,400,'2026-07-20','Pendiente'),
-(4,5,5,200,'2026-08-25','Pendiente'),
-(5,9,2,700,'2026-08-01','Entregada'),
-(6,6,6,200,'2026-07-05','Confirmada'),
-(7,7,7,300,'2026-10-01','Pendiente'),
-(8,9,3,400,'2026-07-20','Cancelada'),
+INSERT INTO reservas (id, comprador_id, lote_id, cantidad, fecha, estado) VALUES
+(1,5,1, 300,'2026-07-15','Pendiente'),
+(2,6,2, 500,'2026-08-01','Pendiente'),
+(3,7,3, 400,'2026-07-20','Pendiente'),
+(4,5,5, 200,'2026-08-25','Pendiente'),
+(5,9,2, 700,'2026-08-01','Entregada'),
+(6,6,6, 200,'2026-07-05','Confirmada'),
+(7,7,7, 300,'2026-10-01','Pendiente'),
+(8,9,3, 400,'2026-07-20','Cancelada'),
 (9,5,10,600,'2026-07-28','Pendiente');
 
 -- ============================================================
--- INSERT HISTORIAL SEGUIMIENTO  (sin cambios)
+-- INSERT HISTORIAL SEGUIMIENTO
 -- ============================================================
 INSERT INTO historial_seguimiento
 (id,accion,lote,producto,fecha)
 VALUES
-(1,'Siembra registrada',                  1,'Tomate Chonto','2026-03-10'),
-(2,'Control de plagas aplicado',          1,'Tomate Chonto','2026-04-15'),
-(3,'Riego programado completado',         2,'Aguacate Hass','2026-04-20'),
-(4,'Inicio de floracion confirmada',      2,'Aguacate Hass','2026-05-01'),
-(5,'Abono organico aplicado',             3,'Papa Pastusa', '2026-04-25'),
-(6,'Cosecha iniciada',                    8,'Yuca',         '2026-06-20'),
-(7,'Entrega al comprador completada',     8,'Yuca',         '2026-06-30'),
-(8,'Siembra registrada',                  4,'Maiz Amarillo','2026-05-12'),
-(9,'Inspección fitosanitaria aprobada',   5,'Frijol Cargamanto','2026-05-20'),
-(10,'Lote habilitado para reservas',      9,'Arveja Verde', '2026-06-01'),
-(11,'Primer corte de muestra tomado',     6,'Brocoli',      '2026-06-10'),
-(12,'Cosecha estimada confirmada',        7,'Mango Tommy',  '2026-06-15');
+(1, 'Siembra registrada',                1,'Tomate Chonto',     '2026-03-10'),
+(2, 'Control de plagas aplicado',        1,'Tomate Chonto',     '2026-04-15'),
+(3, 'Riego programado completado',       2,'Aguacate Hass',     '2026-04-20'),
+(4, 'Inicio de floracion confirmada',    2,'Aguacate Hass',     '2026-05-01'),
+(5, 'Abono organico aplicado',           3,'Papa Pastusa',      '2026-04-25'),
+(6, 'Cosecha iniciada',                  8,'Yuca',              '2026-06-20'),
+(7, 'Entrega al comprador completada',   8,'Yuca',              '2026-06-30'),
+(8, 'Siembra registrada',                4,'Maiz Amarillo',     '2026-05-12'),
+(9, 'Inspeccion fitosanitaria aprobada', 5,'Frijol Cargamanto', '2026-05-20'),
+(10,'Lote habilitado para reservas',     9,'Arveja Verde',      '2026-06-01'),
+(11,'Primer corte de muestra tomado',    6,'Brocoli',           '2026-06-10'),
+(12,'Cosecha estimada confirmada',       7,'Mango Tommy',       '2026-06-15');
 
 -- ============================================================
 -- INSERT COMPRAS  (comprador_id apunta a usuarios)
 -- ============================================================
-INSERT INTO compras VALUES
+INSERT INTO compras (id, comprador_id, lote_id, cantidad, fecha, total) VALUES
 (1,5,8,1000,'2026-06-30',1500000),
 (2,6,8,2500,'2026-06-30',3750000);
 
 -- ============================================================
--- INSERT VENTAS  (sin cambios)
+-- INSERT VENTAS
 -- ============================================================
-INSERT INTO ventas VALUES
+INSERT INTO ventas (id, vendedor_id, lote_id, cantidad, fecha, total) VALUES
 (1,4,8,3500,'2026-06-30',5250000);
 
 -- ============================================================
--- INSERT HISTORIAL RESERVAS  (sin cambios)
+-- INSERT HISTORIAL RESERVAS
 -- ============================================================
 INSERT INTO historial_reservas
 (id,reserva_id,estado,fecha)
