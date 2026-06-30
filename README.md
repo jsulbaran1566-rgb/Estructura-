@@ -27,13 +27,11 @@ scr/
 │   └── Esquemas.py                  # Schemas Pydantic de entrada/edición para cada entidad
 ├── Excepciones/
 │   ├── excepciones_categorias.py
-│   ├── excepciones_compradores.py   # Definidas pero sin rutas activas (ver nota más abajo)
 │   ├── excepciones_lotes.py
 │   ├── excepciones_reservas.py
 │   └── excepciones_usuarios.py
 ├── Controladores/
 │   ├── controladores_categorias.py
-│   ├── controladores_compradores.py # Definido pero sin rutas activas (ver nota más abajo)
 │   ├── controladores_historial.py
 │   ├── controladores_lotes.py
 │   ├── controladores_reservas.py
@@ -42,7 +40,6 @@ scr/
 │   └── controladores_usuarios.py
 └── Rutas/
     ├── rutas_categorias.py
-    ├── rutas_compradores.py         # Definida pero NO registrada en main.py (módulo legado)
     ├── rutas_historial.py
     ├── rutas_lotes.py
     ├── rutas_reservas.py
@@ -51,7 +48,7 @@ scr/
     └── rutas_usuarios.py
 ```
 
-> **Nota:** el módulo `Compradores` (modelo, esquema, controlador, excepciones y rutas) corresponde a una versión anterior del proyecto. Actualmente los compradores son `Usuario` con `rol = "Comprador"`; el router `rutas_compradores` existe en el código pero **no está incluido** en `main.py`, por lo que sus endpoints no están activos.
+> **Nota:** el módulo `Compradores` (modelo, esquema, controlador, excepciones y rutas) era un remanente de una versión anterior del proyecto, ya eliminado. Los compradores hoy son simplemente `Usuario` con `rol = "Comprador"`, gestionados a través de los endpoints `/usuarios`.
 
 ## Modelo de datos
 
@@ -226,4 +223,3 @@ Además, cualquier excepción no controlada es capturada por un manejador genér
 - El CORS está restringido actualmente a `http://127.0.0.1:8000`; ajustar `allow_origins` en `main.py` según el dominio real del frontend.
 - Las tablas se crean automáticamente al iniciar la app (`Base.metadata.create_all`); no se usa un sistema de migraciones (como Alembic), por lo que los cambios en `models.py` requieren borrar y recrear la base de datos.
 - `requirements.txt` solo incluye `fastapi`, `uvicorn` y `sqlalchemy`; faltan `psycopg2-binary` y `pydantic[email]`, necesarios para ejecutar el proyecto (ver sección de Instalación).
-- El módulo de `Compradores` (rutas, controlador y excepciones) quedó en el repositorio de una versión anterior del modelo de datos, pero no está conectado a la aplicación (`main.py` no lo importa).
