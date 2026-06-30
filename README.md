@@ -48,8 +48,6 @@ scr/
     └── rutas_usuarios.py
 ```
 
-> **Nota:** el módulo `Compradores` (modelo, esquema, controlador, excepciones y rutas) era un remanente de una versión anterior del proyecto, ya eliminado. Los compradores hoy son simplemente `Usuario` con `rol = "Comprador"`, gestionados a través de los endpoints `/usuarios`.
-
 ## Modelo de datos
 
 | Tabla | Descripción |
@@ -81,10 +79,7 @@ Todas las relaciones usan claves foráneas con `ON UPDATE`/`ON DELETE` definidos
    ```
    pip install -r requirements.txt
    ```
-   El proyecto también necesita `psycopg2-binary` y `pydantic[email]` (usado por los esquemas con `EmailStr`), que no están listados en `requirements.txt`:
-   ```
-   pip install fastapi uvicorn sqlalchemy psycopg2-binary pydantic[email]
-   ```
+   Incluye `fastapi`, `uvicorn`, `sqlalchemy`, `psycopg2-binary` (driver de PostgreSQL) y `pydantic[email]` (necesario porque los esquemas usan `EmailStr`).
 
 ## Configuración de la base de datos
 
@@ -222,4 +217,3 @@ Además, cualquier excepción no controlada es capturada por un manejador genér
 
 - El CORS está restringido actualmente a `http://127.0.0.1:8000`; ajustar `allow_origins` en `main.py` según el dominio real del frontend.
 - Las tablas se crean automáticamente al iniciar la app (`Base.metadata.create_all`); no se usa un sistema de migraciones (como Alembic), por lo que los cambios en `models.py` requieren borrar y recrear la base de datos.
-- `requirements.txt` solo incluye `fastapi`, `uvicorn` y `sqlalchemy`; faltan `psycopg2-binary` y `pydantic[email]`, necesarios para ejecutar el proyecto (ver sección de Instalación).
