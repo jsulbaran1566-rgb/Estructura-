@@ -8,69 +8,78 @@ from Excepciones.excepciones_lotes import (
     ErrorCantidadInvalida,
     ErrorCategoriaInvalidaEnLote,
 )
-from respuesta import respuesta_ok, respuesta_error
+from Utilidades.respuesta import respuesta_ok, respuesta_error
 from Esquemas.Esquemas import LoteCrear, LoteEditar
 
 
-def obtener_lotes(db: Session = Depends(get_db)):
-    lotes = db.query(models.Lote).all()
-    return respuesta_ok(
-        message="Lotes obtenidos",
-        data=[
-            {
-                "id": l.id,
-                "producto": l.producto,
-                "cantidad": l.cantidad,
-                "categoria": l.categoria,
-                "productor_id": l.productor_id,
-                "productor": l.productor.nombre,
-            }
-            for l in lotes
-        ],
-    )
+# ── Helper ────────────────────────────────────────────────────────────────────
+
+def _serializar_lote(l: models.Lote) -> dict:
+    return {
+        "id":             l.id,
+        "producto":       l.producto,
+        "cantidad":       l.cantidad,
+        "kg_reservados":  l.kg_reservados,
+        "precio_kg":      float(l.precio_kg) if l.precio_kg else None,
+        "estado":         l.estado,
+        "fecha_cosecha":  str(l.fecha_cosecha) if l.fecha_cosecha else None,
+        "categoria":      l.categoria,
+        "productor_id":   l.productor_id,
+        "productor":      l.productor.nombre,
+    }
 
 
-def obtener_lote_por_id_y_categoria(
-    id: int,
-    categoria: str,
-    cantidad_min: int = Query(default=0,          description="Cantidad mínima disponible"),
-    ordenar_por: str  = Query(default="producto",  description="Campo para ordenar: producto | cantidad"),
+# ── GET /lotes ────────────────────────────────────────────────────────────────
+# Lista todos los lotes. Filtros opcionales por categoría, estado y productor.
+
+def obtener_lotes(
+    categoria:    str = Query(default=None, description="Filtrar por categoría"),
+    estado:       str = Query(default=None, description="Filtrar por estado: Activo | Inactivo"),
+    productor_id: int = Query(default=None, description="Filtrar por id de productor"),
     db: Session = Depends(get_db),
 ):
-    if id <= 0:
-        return respuesta_error("El id debe ser un número positivo", status_code=400)
-    if cantidad_min < 0:
-        return respuesta_error("cantidad_min no puede ser negativo", status_code=400)
+    query = db.query(models.Lote)
 
-    campos_validos = ["producto", "cantidad"]
-    if ordenar_por not in campos_validos:
-        return respuesta_error(f"ordenar_por debe ser uno de: {campos_validos}", status_code=400)
+    if categoria:
+        query = query.filter(models.Lote.categoria.ilike(categoria))
+    if estado:
+        query = query.filter(models.Lote.estado == estado)
+    if productor_id:
+        query = query.filter(models.Lote.productor_id == productor_id)
 
-    resultado = db.query(models.Lote).filter(
-        models.Lote.id == id,
-        models.Lote.categoria.ilike(categoria),
-        models.Lote.cantidad >= cantidad_min
-    ).all()
-
-    if not resultado:
-        raise ErrorLoteNoEncontrado(id)
-
-    ordenado = sorted(resultado, key=lambda x: getattr(x, ordenar_por))
+    lotes = query.all()
     return respuesta_ok(
-        message="Lote obtenido",
-        data=[
-            {
-                "id": l.id,
-                "producto": l.producto,
-                "cantidad": l.cantidad,
-                "categoria": l.categoria,
-                "productor_id": l.productor_id,
-                "productor": l.productor.nombre,
-            }
-            for l in ordenado
-        ],
+        message="Lotes obtenidos",
+        data=[_serializar_lote(l) for l in lotes],
     )
 
+
+# ── GET /lotes/{producto} ────────────────────────────────────────────────────
+# Busca lotes cuyo nombre de producto coincida (búsqueda parcial).
+
+def obtener_lote_por_producto(
+    producto: str,
+    db: Session = Depends(get_db),
+):
+    if not producto.strip():
+        return respuesta_error("El nombre del producto no puede estar vacío", status_code=400)
+
+    lotes = (
+        db.query(models.Lote)
+        .filter(models.Lote.producto.ilike(f"%{producto.strip()}%"))
+        .all()
+    )
+    if not lotes:
+        return respuesta_error(f"No se encontraron lotes con producto '{producto}'", status_code=404)
+
+    return respuesta_ok(
+        message="Lote(s) obtenido(s)",
+        data=[_serializar_lote(l) for l in lotes],
+    )
+
+
+# ── POST /lotes ───────────────────────────────────────────────────────────────
+# Crea un nuevo lote. El productor_id debe ser un usuario con rol 'Productor'.
 
 def agregar_lote(
     datos: LoteCrear,
@@ -85,10 +94,12 @@ def agregar_lote(
     if datos.cantidad <= 0:
         raise ErrorCantidadInvalida()
 
-    # lotes.productor_id es FK a usuarios.id: el usuario debe existir y tener rol 'Productor'
     productor = db.query(models.Usuario).filter(models.Usuario.id == datos.productor_id).first()
     if not productor:
-        return respuesta_error(f"No existe un usuario con id {datos.productor_id}", status_code=404)
+        return respuesta_error(
+            f"No existe un usuario con id {datos.productor_id}",
+            status_code=404,
+        )
     if productor.rol != "Productor":
         return respuesta_error(
             f"El usuario {datos.productor_id} tiene rol '{productor.rol}', no 'Productor'.",
@@ -101,30 +112,31 @@ def agregar_lote(
         cantidad=datos.cantidad,
         categoria=datos.categoria,
         productor_id=datos.productor_id,
+        estado=datos.estado,
+        fecha_cosecha=datos.fecha_cosecha,
+        precio_kg=datos.precio_kg,
     )
     db.add(nuevo)
-
-    historial = models.HistorialSeguimiento(accion="Creación de lote", lote=datos.id, producto=datos.producto)
-    db.add(historial)
-
+    db.add(models.HistorialSeguimiento(
+        accion="Creación de lote",
+        lote=datos.id,
+        producto=datos.producto,
+    ))
     db.commit()
     db.refresh(nuevo)
+
     return respuesta_ok(
-        message="Lote agregado",
-        data={
-            "id": nuevo.id,
-            "producto": nuevo.producto,
-            "cantidad": nuevo.cantidad,
-            "categoria": nuevo.categoria,
-            "productor_id": nuevo.productor_id,
-        },
+        message="Lote creado",
+        data=_serializar_lote(nuevo),
         status_code=201,
     )
 
 
+# ── PUT /lotes/{id} ──────────────────────────────────────────────────────────
+# Actualiza producto, cantidad, categoría, precio_kg, estado y fecha de cosecha.
+
 def editar_lote(
     id: int,
-    nuevo_producto: str,
     datos: LoteEditar,
     db: Session = Depends(get_db),
 ):
@@ -135,23 +147,68 @@ def editar_lote(
     if not lote:
         raise ErrorLoteNoEncontrado(id)
 
-    lote.producto = nuevo_producto
+    if datos.producto is not None:
+        if not datos.producto.strip():
+            return respuesta_error("El nombre del producto no puede estar vacío", status_code=400)
+        lote.producto = datos.producto.strip()
     if datos.cantidad is not None:
         if datos.cantidad <= 0:
             raise ErrorCantidadInvalida()
         lote.cantidad = datos.cantidad
-    if datos.categoria:
+    if datos.categoria is not None:
+        if not db.query(models.Categoria).filter(models.Categoria.nombre == datos.categoria).first():
+            raise ErrorCategoriaInvalidaEnLote(datos.categoria)
         lote.categoria = datos.categoria
+    if datos.estado is not None:
+        lote.estado = datos.estado
+    if datos.precio_kg is not None:
+        lote.precio_kg = datos.precio_kg
+    if datos.fecha_cosecha is not None:
+        lote.fecha_cosecha = datos.fecha_cosecha
 
     db.commit()
     db.refresh(lote)
+
     return respuesta_ok(
         message="Lote actualizado",
-        data={
-            "id": lote.id,
-            "producto": lote.producto,
-            "cantidad": lote.cantidad,
-            "categoria": lote.categoria,
-            "productor_id": lote.productor_id,
-        },
+        data=_serializar_lote(lote),
+    )
+
+
+# ── DELETE /lotes/{id} ────────────────────────────────────────────────────────
+# Elimina un lote. No se permite si tiene reservas en estado Pendiente o Confirmada.
+
+def eliminar_lote(
+    id: int,
+    confirmar: bool = Query(default=False, description="Debe ser true para confirmar la eliminación"),
+    db: Session = Depends(get_db),
+):
+    if id <= 0:
+        return respuesta_error("El id debe ser un número positivo", status_code=400)
+
+    if not confirmar:
+        return respuesta_error("Debe confirmar la eliminación con ?confirmar=true", status_code=400)
+
+    lote = db.query(models.Lote).filter(models.Lote.id == id).first()
+    if not lote:
+        raise ErrorLoteNoEncontrado(id)
+
+    reservas_activas = db.query(models.Reserva).filter(
+        models.Reserva.lote_id == id,
+        models.Reserva.estado.in_(["Pendiente", "Confirmada"]),
+    ).count()
+
+    if reservas_activas > 0:
+        return respuesta_error(
+            f"El lote {id} tiene {reservas_activas} reserva(s) activa(s). Cancélalas primero.",
+            status_code=409,
+        )
+
+    producto = lote.producto
+    db.delete(lote)
+    db.commit()
+
+    return respuesta_ok(
+        message="Lote eliminado",
+        data={"id": id, "producto": producto},
     )

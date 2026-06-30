@@ -1,14 +1,19 @@
-# pip install fastapi uvicorn sqlalchemy psycopg2-binary
-# uvicorn main:app --app-dir scr --reload
+# AgroMercado API — punto de entrada principal
+# pip install fastapi uvicorn sqlalchemy psycopg2-binary pydantic[email]
+# cd C:\Users\SENA\Downloads\fastapi\scr uvicorn main:app --reload
 
-from fastapi import FastAPI
+import time
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from Conexion.database import engine, Base
 import Modelos.models as models
 
 from Utilidades.respuesta import respuesta_error
 
-# ── Excepciones por módulo ──────────────────────────────────────────────────
+# ── Excepciones ───────────────────────────────────────────────────────────────
+
 from Excepciones.excepciones_usuarios import (
     ErrorUsuarioNoExiste,
     ErrorUsuarioYaExiste,
@@ -24,42 +29,75 @@ from Excepciones.excepciones_categorias import (
     ErrorCategoriaNoEncontrada,
     ErrorCategoriaYaExiste,
     ErrorCantidadMinNegativa,
-)
-from Excepciones.excepciones_compradores import (
-    ErrorCompradorNoEncontrado,
-    ErrorCompradorYaExiste,
-    ErrorConfirmacionRequerida,
-    ErrorIdInvalido,
+    ErrorCategoriaConLotes,
 )
 from Excepciones.excepciones_reservas import (
     ErrorReservaNoEncontrada,
     ErrorReservaYaExiste,
+    ErrorReservaNoEliminable,
     ErrorStockInsuficiente,
     ErrorProductoNoEncontrado,
     ErrorEstadoInvalido,
 )
 
+# ── Rutas ─────────────────────────────────────────────────────────────────────
+
 from Rutas import (
     rutas_usuarios,
     rutas_lotes,
-    rutas_compradores,
     rutas_reservas,
     rutas_categorias,
     rutas_historial,
+    rutas_roles,
+    rutas_tipos_documento,
 )
 
-# Crea todas las tablas al arrancar
+# Crea las tablas al arrancar si no existen
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="AgroMercado API", version="3.0")
+# ── App ───────────────────────────────────────────────────────────────────────
+
+app = FastAPI(
+    title="AgroMercado API",
+    version="4.0",
+    description="API para la comercialización de productos agrícolas entre productores y compradores.",
+)
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=["http://127.0.0.1:8000"], 
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
-    allow_credentials=False,
+    allow_credentials=True,
 )
+
+# ── Middleware de logging ─────────────────────────────────────────────────────
+
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        inicio    = time.time()
+        response  = await call_next(request)
+        duracion  = time.time() - inicio
+        print(f"[{response.status_code}] {request.method} {request.url.path} — {duracion:.3f}s")
+        return response
+
+app.add_middleware(LoggingMiddleware)
+
+# ── Manejador global de errores no controlados ────────────────────────────────
+
+@app.exception_handler(Exception)
+async def manejar_error_generico(request: Request, error: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "ok":      False,
+            "message": "Error interno del servidor",
+            "error":   str(error),
+            "data":    None,
+        },
+    )
 
 
 # ================================================================
@@ -116,26 +154,9 @@ async def manejar_categoria_ya_existe(request, error):
 async def manejar_cantidad_min_negativa(request, error):
     return respuesta_error(message=error.mensaje, status_code=400, error=error.mensaje)
 
-
-# ================================================================
-# MANEJADORES DE EXCEPCIONES — COMPRADORES
-# ================================================================
-
-@app.exception_handler(ErrorCompradorNoEncontrado)
-async def manejar_comprador_no_encontrado(request, error):
-    return respuesta_error(message=error.mensaje, status_code=404, error=error.mensaje)
-
-@app.exception_handler(ErrorCompradorYaExiste)
-async def manejar_comprador_ya_existe(request, error):
-    return respuesta_error(message=error.mensaje, status_code=400, error=error.mensaje)
-
-@app.exception_handler(ErrorConfirmacionRequerida)
-async def manejar_confirmacion_requerida(request, error):
-    return respuesta_error(message=error.mensaje, status_code=400, error=error.mensaje)
-
-@app.exception_handler(ErrorIdInvalido)
-async def manejar_id_invalido(request, error):
-    return respuesta_error(message=error.mensaje, status_code=400, error=error.mensaje)
+@app.exception_handler(ErrorCategoriaConLotes)
+async def manejar_categoria_con_lotes(request, error):
+    return respuesta_error(message=error.mensaje, status_code=409, error=error.mensaje)
 
 
 # ================================================================
@@ -149,6 +170,10 @@ async def manejar_reserva_no_encontrada(request, error):
 @app.exception_handler(ErrorReservaYaExiste)
 async def manejar_reserva_ya_existe(request, error):
     return respuesta_error(message=error.mensaje, status_code=400, error=error.mensaje)
+
+@app.exception_handler(ErrorReservaNoEliminable)
+async def manejar_reserva_no_eliminable(request, error):
+    return respuesta_error(message=error.mensaje, status_code=409, error=error.mensaje)
 
 @app.exception_handler(ErrorStockInsuficiente)
 async def manejar_stock_insuficiente(request, error):
@@ -169,7 +194,8 @@ async def manejar_estado_invalido(request, error):
 
 app.include_router(rutas_usuarios.router)
 app.include_router(rutas_lotes.router)
-app.include_router(rutas_compradores.router)
 app.include_router(rutas_reservas.router)
 app.include_router(rutas_categorias.router)
 app.include_router(rutas_historial.router)
+app.include_router(rutas_roles.router)
+app.include_router(rutas_tipos_documento.router)
