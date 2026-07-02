@@ -8,6 +8,7 @@ from Excepciones.excepciones_usuarios import (
     ErrorRolInvalido,
 )
 from Utilidades.respuesta import respuesta_ok, respuesta_error
+from Utilidades.seguridad import hashear_clave
 from Esquemas.Esquemas import UsuarioCrear, UsuarioEditar, ESTADOS_VALIDOS
 
 
@@ -156,7 +157,7 @@ def agregar_usuario(
         nombre=datos.nombre,
         correo=datos.correo,
         telefono=datos.telefono,
-        clave=datos.clave,
+        clave=hashear_clave(datos.clave),
         direccion=datos.direccion,
         ciudad=datos.ciudad,
         empresa=datos.empresa,

@@ -39,6 +39,7 @@ from Excepciones.excepciones_reservas import (
     ErrorProductoNoEncontrado,
     ErrorEstadoInvalido,
 )
+from Excepciones.excepciones_auth import ErrorCredencialesInvalidas
 
 # ── Rutas ─────────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ from Rutas import (
     rutas_historial,
     rutas_roles,
     rutas_tipos_documento,
+    rutas_auth,
 )
 
 # Crea las tablas al arrancar si no existen
@@ -67,7 +69,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:8000"], 
+    allow_origins=[
+        "http://127.0.0.1:5500",  # Live Server (frontend)
+        "http://localhost:5500",
+        "http://127.0.0.1:8000",
+    ],
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -189,6 +195,15 @@ async def manejar_estado_invalido(request, error):
 
 
 # ================================================================
+# MANEJADORES DE EXCEPCIONES — AUTENTICACIÓN
+# ================================================================
+
+@app.exception_handler(ErrorCredencialesInvalidas)
+async def manejar_credenciales_invalidas(request, error):
+    return respuesta_error(message=error.mensaje, status_code=401, error=error.mensaje)
+
+
+# ================================================================
 # REGISTRO DE RUTAS
 # ================================================================
 
@@ -199,3 +214,4 @@ app.include_router(rutas_categorias.router)
 app.include_router(rutas_historial.router)
 app.include_router(rutas_roles.router)
 app.include_router(rutas_tipos_documento.router)
+app.include_router(rutas_auth.router)

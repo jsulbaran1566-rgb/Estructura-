@@ -60,23 +60,6 @@ CREATE TABLE usuarios (
 );
 
 -- ============================================================
--- TABLA PROVEEDORES
--- ============================================================
-CREATE TABLE proveedores (
-    id INTEGER PRIMARY KEY,
-    nombre VARCHAR(150) NOT NULL,
-    tipo VARCHAR(50) NOT NULL,
-    ciudad VARCHAR(100) NOT NULL,
-    direccion VARCHAR(200),
-    telefono VARCHAR(20) NOT NULL,
-    correo VARCHAR(150) UNIQUE NOT NULL,
-    estado VARCHAR(20) DEFAULT 'Activo',
-
-    CONSTRAINT chk_proveedor_estado
-        CHECK (estado IN ('Activo','Inactivo'))
-);
-
--- ============================================================
 -- TABLA LOTES
 -- ============================================================
 CREATE TABLE lotes (
@@ -255,18 +238,6 @@ VALUES
 (9,  'NIT', 'Supermercado Central', 'central@super.com',        '3009000009', 'comp000',  'Sur',          'Cali',         'Supermercado Central',  3, 'Activo'),
 (10, 'CC',  'Juan Ramirez',         'juan.r@agro.com',          '3010000010', 'admin456', 'Bogota',       NULL,           NULL,                    1, 'Activo');
 
--- ============================================================
--- INSERT PROVEEDORES
--- ============================================================
-INSERT INTO proveedores (id, nombre, tipo, ciudad, direccion, telefono, correo, estado) VALUES
-(1,'TransCarga SAS',     'Logistica',     'Medellin',      'Zona Industrial','3101000001','ops@transcarga.com',    'Activo'),
-(2,'FrioExpress Ltda',   'Refrigeracion', 'Bogota',        'Fontibon',       '3101000002','frio@express.com',      'Activo'),
-(3,'AgroInsumos del Sur','Insumos',       'Cali',          'Centro',         '3101000003','ventas@agroinsumos.com','Activo'),
-(4,'EmpaqueStar',        'Empaque',       'Bucaramanga',   'Cabecera',       '3101000004','info@empaquestar.com',  'Inactivo'),
-(5,'LogiCampo SAS',      'Logistica',     'Pereira',       'Industrial',     '3101000005','logicampo@campo.com',   'Activo'),
-(6,'Semillas del Llano', 'Insumos',       'Villavicencio', 'Centro',         '3101000006','semillas@llano.com',    'Activo'),
-(7,'CajaFlex Colombia',  'Empaque',       'Manizales',     'Norte',          '3101000007','cajaflex@col.com',      'Activo'),
-(8,'ColdChain Andina',   'Refrigeracion', 'Bogota',        'Puente Aranda',  '3101000008','cold@andina.com',       'Inactivo');
 
 -- ============================================================
 -- INSERT LOTES

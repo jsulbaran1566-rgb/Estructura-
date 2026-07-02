@@ -24,23 +24,6 @@ class Rol(Base):
     usuarios    = relationship("Usuario", back_populates="rol_rel")
 
 
-# ================= PROVEEDORES =================
-
-class Proveedor(Base):
-    __tablename__ = "proveedores"
-    __table_args__ = (
-        CheckConstraint("estado IN ('Activo','Inactivo')", name="chk_proveedor_estado"),
-    )
-    id        = Column(Integer,     primary_key=True)
-    nombre    = Column(String(150), nullable=False)
-    tipo      = Column(String(50),  nullable=False)
-    ciudad    = Column(String(100), nullable=False)
-    direccion = Column(String(200), nullable=True)
-    telefono  = Column(String(20),  nullable=False)
-    correo    = Column(String(150), unique=True, nullable=False)
-    estado    = Column(String(20),  nullable=False, default="Activo")
-
-
 # ================= USUARIOS =================
 
 class Usuario(Base):

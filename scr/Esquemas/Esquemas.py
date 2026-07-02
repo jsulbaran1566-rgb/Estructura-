@@ -311,59 +311,15 @@ class TipoDocumentoEditar(BaseModel):
         return v.strip() if v else v
 
 
-# ================= PROVEEDORES =================
+# ================= AUTENTICACION =================
 
-class ProveedorCrear(BaseModel):
-    id:        int
-    nombre:    str
-    tipo:      str
-    ciudad:    str
-    direccion: Optional[str] = None
-    telefono:  str
-    correo:    EmailStr
-    estado:    str = "Activo"
+class LoginEntrada(BaseModel):
+    correo: EmailStr
+    clave: str
 
-    @field_validator("id")
+    @field_validator("clave")
     @classmethod
-    def id_positivo(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("El id debe ser un número positivo")
-        return v
-
-    @field_validator("nombre", "tipo", "ciudad", "telefono")
-    @classmethod
-    def campos_no_vacios(cls, v: str) -> str:
+    def clave_no_vacia(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError("Este campo no puede estar vacío")
-        return v.strip()
-
-    @field_validator("estado")
-    @classmethod
-    def estado_valido(cls, v: str) -> str:
-        if v not in ("Activo", "Inactivo"):
-            raise ValueError("El estado debe ser 'Activo' o 'Inactivo'")
-        return v
-
-
-class ProveedorEditar(BaseModel):
-    nombre:    Optional[str]      = None
-    tipo:      Optional[str]      = None
-    ciudad:    Optional[str]      = None
-    direccion: Optional[str]      = None
-    telefono:  Optional[str]      = None
-    correo:    Optional[EmailStr] = None
-    estado:    Optional[str]      = None
-
-    @field_validator("nombre", "tipo", "ciudad", "telefono")
-    @classmethod
-    def campos_no_vacios(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and not v.strip():
-            raise ValueError("Este campo no puede estar vacío")
-        return v.strip() if v else v
-
-    @field_validator("estado")
-    @classmethod
-    def estado_valido(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in ("Activo", "Inactivo"):
-            raise ValueError("El estado debe ser 'Activo' o 'Inactivo'")
+            raise ValueError("La clave no puede estar vacía")
         return v
