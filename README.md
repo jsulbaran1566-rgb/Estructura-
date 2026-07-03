@@ -1,52 +1,91 @@
 # AgroMercado API
 
-API REST para un mercado agrícola de pre-cosecha. Permite gestionar usuarios (productores y compradores), roles, tipos de documento, categorías, lotes de producto y reservas, además de consultar el historial de movimientos, compras y ventas.
+API REST para un mercado agrícola de pre-cosecha. Permite gestionar usuarios (productores y compradores), roles, tipos de documento, proveedores, categorías, lotes de producto, reservas, favoritos y tickets de soporte, además de consultar el historial de movimientos, compras y ventas. Incluye autenticación con correo/contraseña y token JWT.
 
 ## Tecnologías
 
 - **FastAPI** — framework para construir la API
 - **SQLAlchemy** — ORM para hablar con la base de datos
 - **PostgreSQL** (`psycopg2`) — motor de base de datos
-- **Pydantic** — validación de los datos que llegan en las peticiones
+- **Pydantic** — validación de los datos que llegan en las peticiones (`pydantic[email]` para `EmailStr`)
+- **Passlib (bcrypt)** — hash de contraseñas
+- **python-jose** — firma y verificación de tokens JWT
 - **Starlette** — middleware de logging de peticiones
-- **CORS Middleware** — habilitado para `http://127.0.0.1:8000`
+- **CORS Middleware** — habilitado para `http://127.0.0.1:5500`, `http://localhost:5500` y `http://127.0.0.1:8000`
 
 ## Estructura del proyecto
 
+Los modelos, esquemas, excepciones, controladores y rutas están organizados **un archivo por dominio/tabla**, todos reunidos por un punto de entrada que el resto del código importa.
+
 ```
 scr/
-├── main.py                          # Punto de entrada: app, middlewares, manejadores de errores, registro de rutas
+├── main.py                          # App, CORS, middleware de logging, registro de manejadores de
+│                                     # excepciones y de rutas, creación de tablas al arrancar
 ├── Utilidades/
-│   └── respuesta.py                 # Funciones respuesta_ok / respuesta_error (formato estándar de respuesta)
+│   ├── respuesta.py                 # respuesta_ok / respuesta_error (formato estándar de respuesta)
+│   └── seguridad.py                 # hashear_clave / verificar_clave (bcrypt) y crear_token / leer_token (JWT)
 ├── Conexion/
 │   └── database.py                  # Engine, SessionLocal, Base y get_db() para PostgreSQL
 ├── Modelos/
-│   └── models.py                    # Tablas SQLAlchemy: TipoDocumento, Rol, Proveedor, Usuario, Categoria,
-│                                     # Lote, Reserva, HistorialSeguimiento, Compra, Venta, HistorialReserva
+│   ├── models.py                    # Punto de entrada único: reexporta todos los modelos de abajo
+│   ├── modelos_tipos_documento.py   # TipoDocumento
+│   ├── modelos_roles.py             # Rol
+│   ├── modelos_usuarios.py          # Usuario
+│   ├── modelos_categorias.py        # Categoria
+│   ├── modelos_lotes.py             # Lote
+│   ├── modelos_reservas.py          # Reserva
+│   ├── modelos_historial.py         # HistorialSeguimiento, Compra, Venta, HistorialReserva
+│   ├── modelos_proveedores.py       # Proveedor
+│   ├── modelos_favoritos.py         # Favorito
+│   └── modelos_soporte.py           # Soporte
 ├── Esquemas/
-│   └── Esquemas.py                  # Schemas Pydantic de entrada/edición para cada entidad
+│   ├── Esquemas.py                  # Punto de entrada único: reexporta los esquemas de abajo
+│   ├── esquemas_usuarios.py
+│   ├── esquemas_roles.py
+│   ├── esquemas_categorias.py
+│   ├── esquemas_lotes.py
+│   ├── esquemas_reservas.py
+│   ├── esquemas_tipos_documento.py
+│   ├── esquemas_proveedores.py
+│   ├── esquemas_favoritos.py
+│   ├── esquemas_soporte.py
+│   └── esquemas_auth.py             # LoginEntrada
 ├── Excepciones/
-│   ├── excepciones_categorias.py
+│   ├── excepciones_usuarios.py
 │   ├── excepciones_lotes.py
+│   ├── excepciones_categorias.py
 │   ├── excepciones_reservas.py
-│   └── excepciones_usuarios.py
+│   ├── excepciones_proveedores.py
+│   ├── excepciones_favoritos.py
+│   ├── excepciones_soporte.py
+│   └── excepciones_auth.py
 ├── Controladores/
-│   ├── controladores_categorias.py
-│   ├── controladores_historial.py
+│   ├── controladores_usuarios.py
 │   ├── controladores_lotes.py
+│   ├── controladores_categorias.py
 │   ├── controladores_reservas.py
 │   ├── controladores_roles.py
 │   ├── controladores_tipos_documento.py
-│   └── controladores_usuarios.py
+│   ├── controladores_proveedores.py
+│   ├── controladores_favoritos.py
+│   ├── controladores_soporte.py
+│   ├── controladores_historial.py
+│   └── controladores_auth.py
 └── Rutas/
-    ├── rutas_categorias.py
-    ├── rutas_historial.py
+    ├── rutas_usuarios.py
     ├── rutas_lotes.py
+    ├── rutas_categorias.py
     ├── rutas_reservas.py
     ├── rutas_roles.py
     ├── rutas_tipos_documento.py
-    └── rutas_usuarios.py
+    ├── rutas_proveedores.py
+    ├── rutas_favoritos.py
+    ├── rutas_soporte.py
+    ├── rutas_historial.py
+    └── rutas_auth.py
 ```
+
+> `models.py` y `Esquemas.py` ya no contienen las clases directamente: son un punto de entrada que reúne y reexporta lo que vive en los archivos `modelos_*.py` / `esquemas_*.py`, para que el resto del proyecto (`import Modelos.models as models`, `models.Usuario`, `models.Lote`, etc.) siga funcionando sin tener que tocar cada controlador.
 
 ## Modelo de datos
 
@@ -54,11 +93,13 @@ scr/
 |---|---|
 | `tipos_documento` | Catálogo de tipos de documento de identidad (código de hasta 4 caracteres + nombre) |
 | `roles` | Roles del sistema (nombre, descripción, permisos) |
+| `usuarios` | Usuarios del sistema (productores y compradores), con `tipo_documento`, `numero_documento`, `correo` y `teléfono` únicos, `clave` (hash bcrypt), `rol_id`, `empresa`, estado y fecha de registro |
 | `proveedores` | Proveedores externos (nombre, tipo, ciudad, contacto, estado Activo/Inactivo) |
-| `usuarios` | Usuarios del sistema (productores y compradores), con `tipo_documento`, `rol_id`, estado y fecha de registro |
 | `categorias` | Categorías de producto (clave primaria = nombre) |
 | `lotes` | Lotes de producto agrícola asociados a un productor y una categoría, con cantidad, kg reservados y precio por kg |
 | `reservas` | Reservas de un comprador sobre un lote, con estado (`Pendiente`, `Confirmada`, `Cancelada`, `Entregada`) |
+| `favoritos` | Relación muchos-a-muchos entre un comprador y sus productores favoritos (clave primaria compuesta `comprador_id` + `productor_id`) |
+| `soporte` | Tickets de soporte enviados desde cualquier panel, con estado (`Pendiente`, `En proceso`, `Resuelto`) |
 | `historial_seguimiento` | Bitácora de acciones realizadas sobre los lotes |
 | `historial_reservas` | Bitácora de cada cambio de estado de una reserva |
 | `compras` | Registro histórico de compras |
@@ -68,7 +109,7 @@ Todas las relaciones usan claves foráneas con `ON UPDATE`/`ON DELETE` definidos
 
 ## Instalación
 
-1. Clonar el repositorio y entrar a la carpeta del proyecto.
+1. Clonar el repositorio y entrar a la carpeta del proyecto (`estructura-api`).
 2. Crear un entorno virtual (opcional, pero recomendado):
    ```
    python -m venv venv
@@ -79,7 +120,7 @@ Todas las relaciones usan claves foráneas con `ON UPDATE`/`ON DELETE` definidos
    ```
    pip install -r requirements.txt
    ```
-   Incluye `fastapi`, `uvicorn`, `sqlalchemy`, `psycopg2-binary` (driver de PostgreSQL) y `pydantic[email]` (necesario porque los esquemas usan `EmailStr`).
+   Incluye `fastapi`, `uvicorn`, `sqlalchemy`, `psycopg2-binary` (driver de PostgreSQL), `pydantic[email]` (necesario porque los esquemas usan `EmailStr`), `passlib[bcrypt]` + `bcrypt==4.0.1` (hash de contraseñas) y `python-jose[cryptography]` (tokens JWT).
 
 ## Configuración de la base de datos
 
@@ -89,10 +130,35 @@ En `Conexion/database.py` se define la conexión a PostgreSQL:
 SQLALCHEMY_DATABASE_URL = "postgresql+psycopg2://postgres:1234@localhost/agro_mercado"
 ```
 
+### Datos de ejemplo (seed)
+
+`agro_mercado_postgres.sql` incluye, además del esquema, datos de ejemplo (usuarios, proveedores, lotes, etc.) listos para probar la API y el frontend:
+
+```
+psql -U postgres -h localhost -d agro_mercado -f agro_mercado_postgres.sql
+```
+
+Las claves de esos usuarios de ejemplo vienen en texto plano dentro del `.sql`, pero la API solo acepta claves hasheadas con bcrypt en el login. Por eso, después de cargar el `.sql`, hay que ejecutar una única vez el script `rehash_claves.py` (con el entorno virtual activo, parado en `scr/`):
+
+```
+cd scr
+python ../rehash_claves.py
+```
+
+Es seguro correrlo varias veces: si una clave ya está hasheada (empieza con `$2b$`), la deja intacta. Sin este paso, el login devuelve error 500 al comparar una clave hasheada contra una clave en texto plano.
+
+Usuarios de ejemplo (correo / clave, tal como quedan en el `.sql` antes de hashear):
+
+```
+Admin:      admin@agrodirecto.com      / admin123
+Productor:  finca.paraiso@campo.com    / prod123
+Comprador:  compras@laplaza.com        / comp123
+```
+
 Antes de ejecutar el proyecto:
-- Crear en PostgreSQL una base de datos llamada `agro_mercado`.
+- Crear en PostgreSQL una base de datos llamada `agro_mercado`. El script `agro_mercado_postgres.sql` (en la raíz de `estructura-api`) contiene el esquema SQL de referencia.
 - Ajustar usuario y contraseña según tu instalación.
-- Las tablas se crean automáticamente al arrancar la aplicación, gracias a `Base.metadata.create_all(bind=engine)` en `main.py`. No hay sistema de migraciones (como Alembic), así que los cambios en `models.py` requieren recrear la base de datos.
+- Las tablas se crean automáticamente al arrancar la aplicación, gracias a `Base.metadata.create_all(bind=engine)` en `main.py`. No hay sistema de migraciones (como Alembic), así que los cambios en los archivos `modelos_*.py` requieren recrear la base de datos.
 
 ## Ejecutar el proyecto
 
@@ -103,6 +169,10 @@ uvicorn main:app --app-dir scr --reload
 ```
 
 La documentación interactiva queda disponible en `http://localhost:8000/docs`.
+
+## Autenticación
+
+`POST /auth/login` recibe `correo` y `clave`, valida contra la tabla `usuarios` (contraseña comparada con `verificar_clave`, hash bcrypt) y, si el usuario existe y está `Activo`, devuelve un token JWT (`Utilidades/seguridad.py`, algoritmo `HS256`, expira en 120 minutos) junto con `id`, `nombre`, `correo` y `rol` del usuario. Si el correo no existe, la clave no coincide o el usuario está inactivo, responde siempre el mismo error (`ErrorCredencialesInvalidas`, HTTP 401) para no revelar cuál de los tres casos ocurrió.
 
 ## Formato de respuesta
 
@@ -128,9 +198,12 @@ En caso de error:
 }
 ```
 
-Los errores no controlados (excepciones genéricas) son capturados por un manejador global en `main.py` y devuelven un código HTTP 500 con `"ok": false`.
+Los errores no controlados (excepciones genéricas) son capturados por un manejador global en `main.py` y devuelven un código HTTP 500. Ese manejador corre por encima del middleware de CORS en el stack de Starlette, así que agrega los encabezados CORS manualmente para que el frontend pueda leer el mensaje real en vez de un falso error de "blocked by CORS policy".
 
 ## Endpoints principales
+
+### Autenticación (`/auth`)
+- `POST /auth/login` — valida correo y clave, devuelve token JWT + datos del usuario
 
 ### Usuarios (`/usuarios`)
 - `GET /usuarios` — listar usuarios (filtros opcionales: `rol`, `estado`)
@@ -155,6 +228,13 @@ Los errores no controlados (excepciones genéricas) son capturados por un maneja
 - `PUT /tipos_documento/{codigo}` — editar el nombre
 - `DELETE /tipos_documento/{codigo}` — eliminar (requiere `?confirmar=true`; falla si tiene usuarios asignados)
 
+### Proveedores (`/proveedores`)
+- `GET /proveedores` — listar proveedores
+- `GET /proveedores/{id}` — obtener proveedor por id
+- `POST /proveedores` — registrar un proveedor
+- `PUT /proveedores/{id}` — editar datos de un proveedor
+- `DELETE /proveedores/{id}` — eliminar proveedor (requiere `?confirmar=true`)
+
 ### Categorías (`/categorias`)
 - `GET /categorias` — listar categorías
 - `GET /categorias/{nombre}/lotes` — lotes de una categoría (filtros opcionales: `cantidad_min`, `solo_activos`; soporta paginación con `limite` y orden con `ordenar`)
@@ -175,6 +255,17 @@ Los errores no controlados (excepciones genéricas) son capturados por un maneja
 - `POST /reservas` — crear una reserva (descuenta kg del lote y registra el estado inicial en el historial)
 - `PUT /reservas/{id}/estado` — actualizar comprador_id, fecha y/o estado (si cambia el estado, guarda bitácora)
 - `DELETE /reservas/{id}` — eliminar reserva (solo si el estado es `Cancelada`; requiere `?confirmar=true`)
+
+### Favoritos (`/favoritos`)
+- `GET /favoritos?comprador_id=` — listar productores favoritos de un comprador
+- `POST /favoritos` — marcar un productor como favorito de un comprador
+- `DELETE /favoritos/{comprador_id}/{productor_id}` — quitar un productor de favoritos (requiere `?confirmar=true`)
+
+### Soporte (`/soporte`)
+- `POST /soporte` — enviar un mensaje de soporte desde cualquier panel (queda con estado `Pendiente`)
+- `GET /soporte` — listar tickets de soporte (uso administrativo)
+- `PUT /soporte/{id}/estado` — cambiar el estado de un ticket (`Pendiente`, `En proceso`, `Resuelto`)
+- `DELETE /soporte/{id}` — eliminar un ticket de soporte (requiere `?confirmar=true`)
 
 ### Historial y reportes
 - `GET /historial_seguimiento` — historial de movimientos de lotes
@@ -205,15 +296,22 @@ Cada módulo lanza sus propias excepciones (carpeta `Excepciones/`), y `main.py`
 | ErrorStockInsuficiente | 400 | Reservas |
 | ErrorProductoNoEncontrado | 404 | Reservas |
 | ErrorEstadoInvalido | 400 | Reservas |
+| ErrorCredencialesInvalidas | 401 | Autenticación |
+| ErrorProveedorNoEncontrado | 404 | Proveedores |
+| ErrorProveedorYaExiste | 400 | Proveedores |
+| ErrorFavoritoYaExiste | 400 | Favoritos |
+| ErrorFavoritoNoEncontrado | 404 | Favoritos |
+| ErrorSoporteNoEncontrado | 404 | Soporte |
 
 Además, cualquier excepción no controlada es capturada por un manejador genérico que responde con HTTP 500.
 
 ## Middleware
 
-- **CORS**: habilitado solo para `http://127.0.0.1:8000`, métodos `GET`, `POST`, `PUT`, `DELETE`, con credenciales permitidas.
+- **CORS**: habilitado para `http://127.0.0.1:5500`, `http://localhost:5500` (frontend servido con Live Server) y `http://127.0.0.1:8000`, métodos `GET`, `POST`, `PUT`, `DELETE`, con credenciales permitidas.
 - **Logging**: un middleware (`LoggingMiddleware`) registra en consola el método, la ruta, el código de estado y la duración de cada petición.
 
 ## Notas
 
-- El CORS está restringido actualmente a `http://127.0.0.1:8000`; ajustar `allow_origins` en `main.py` según el dominio real del frontend.
-- Las tablas se crean automáticamente al iniciar la app (`Base.metadata.create_all`); no se usa un sistema de migraciones (como Alembic), por lo que los cambios en `models.py` requieren borrar y recrear la base de datos.
+- El CORS está restringido a los orígenes listados en `main.py`; ajustar `allow_origins` según el dominio real del frontend en producción.
+- Las tablas se crean automáticamente al iniciar la app (`Base.metadata.create_all`); no se usa un sistema de migraciones (como Alembic), por lo que los cambios en los archivos `modelos_*.py` requieren borrar y recrear la base de datos.
+- La clave secreta del JWT (`CLAVE_SECRETA` en `Utilidades/seguridad.py`) está escrita directamente en el código para simplificar el proyecto; en un entorno real debería venir de una variable de entorno.

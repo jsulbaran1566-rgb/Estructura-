@@ -30,10 +30,15 @@ CREATE TABLE roles (
 
 -- ============================================================
 -- TABLA USUARIOS  (rol_id en vez de rol VARCHAR)
+-- NOTA: se agrega "numero_documento" porque antes solo existia
+-- "tipo_documento" (el codigo CC/NIT/CE/PP) pero nunca se
+-- guardaba el numero de documento en si. Sin esta columna es
+-- imposible mostrarlo en el perfil porque el dato no existe.
 -- ============================================================
 CREATE TABLE usuarios (
     id INTEGER PRIMARY KEY,
     tipo_documento VARCHAR(4) NOT NULL,
+    numero_documento VARCHAR(30) UNIQUE NOT NULL,
     nombre VARCHAR(150) NOT NULL,
     correo VARCHAR(150) UNIQUE NOT NULL,
     telefono VARCHAR(20) UNIQUE NOT NULL,
@@ -57,6 +62,22 @@ CREATE TABLE usuarios (
         FOREIGN KEY (rol_id)
         REFERENCES roles(id)
         ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+-- ============================================================
+-- TABLA PROVEEDORES
+-- ============================================================
+CREATE TABLE proveedores (
+    id INTEGER PRIMARY KEY,
+    nombre VARCHAR(150) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
+    ciudad VARCHAR(100),
+    telefono VARCHAR(20),
+    correo VARCHAR(150),
+    estado VARCHAR(20) DEFAULT 'Activo',
+
+    CONSTRAINT chk_proveedores_estado
+        CHECK (estado IN ('Activo','Inactivo'))
 );
 
 -- ============================================================
@@ -199,6 +220,42 @@ CREATE TABLE historial_reservas (
 );
 
 -- ============================================================
+-- TABLA FAVORITOS
+-- Relación muchos-a-muchos: un comprador marca productores como favoritos.
+-- Clave primaria compuesta -> no necesita id propio ni secuencia.
+-- ============================================================
+CREATE TABLE favoritos (
+    comprador_id   INTEGER NOT NULL,
+    productor_id   INTEGER NOT NULL,
+    fecha_agregado DATE DEFAULT CURRENT_DATE,
+    PRIMARY KEY (comprador_id, productor_id),
+    CONSTRAINT fk_favorito_comprador
+        FOREIGN KEY (comprador_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_favorito_productor
+        FOREIGN KEY (productor_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE soporte (
+    id             SERIAL PRIMARY KEY,
+    usuario_id     INTEGER,
+    nombre         VARCHAR(150) NOT NULL,
+    correo         VARCHAR(150) NOT NULL,
+    mensaje        TEXT NOT NULL,
+    estado         VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_soporte_estado
+        CHECK (estado IN ('Pendiente', 'En proceso', 'Resuelto')),
+    CONSTRAINT fk_soporte_usuario
+        FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(id)
+        ON DELETE SET NULL
+);
+
+-- ============================================================
 -- INSERT CATEGORIAS
 -- ============================================================
 INSERT INTO categorias (nombre) VALUES
@@ -222,22 +279,37 @@ INSERT INTO roles (id, nombre, descripcion, permisos) VALUES
 (3, 'Comprador',     'Explora lotes y crea reservas',       'Ver, Crear');
 
 -- ============================================================
--- INSERT USUARIOS  (rol_id en vez de rol: 1=Administrador, 2=Productor, 3=Comprador)
+-- INSERT USUARIOS
+-- (rol_id: 1=Administrador, 2=Productor, 3=Comprador)
+-- Se agrega numero_documento para cada usuario existente.
 -- ============================================================
 INSERT INTO usuarios
-(id, tipo_documento, nombre, correo, telefono, clave, direccion, ciudad, empresa, rol_id, estado)
+(id, tipo_documento, numero_documento, nombre, correo, telefono, clave, direccion, ciudad, empresa, rol_id, estado)
 VALUES
-(1,  'CC',  'Carlos Mora',          'admin@agrodirecto.com',    '3001000001', 'admin123', 'Bogota',       NULL,           NULL,                    1, 'Activo'),
-(2,  'NIT', 'Finca El Paraiso SAS', 'finca.paraiso@campo.com',  '3002000002', 'prod123',  'Medellin',     NULL,           NULL,                    2, 'Activo'),
-(3,  'NIT', 'Agro Santa Marta',     'agro.santamarta@campo.com','3003000003', 'prod456',  'Santa Marta',  NULL,           NULL,                    2, 'Activo'),
-(4,  'NIT', 'Finca Los Andes',      'losandes@campo.com',       '3004000004', 'prod789',  'Cali',         NULL,           NULL,                    2, 'Activo'),
-(5,  'NIT', 'Restaurante La Plaza', 'compras@laplaza.com',      '3005000005', 'comp123',  'Centro',       'Bogota',       'Restaurante La Plaza',  3, 'Activo'),
-(6,  'NIT', 'Hotel Campestre',      'suministros@hotelc.com',   '3006000006', 'comp456',  'El Poblado',   'Medellin',     'Hotel Campestre',       3, 'Activo'),
-(7,  'NIT', 'Distribuidora Norte',  'pedidos@distnorte.com',    '3007000007', 'comp789',  'Norte',        'Barranquilla', 'Distribuidora Norte',   3, 'Activo'),
-(8,  'CC',  'Maria Gonzalez',       'maria.g@campo.com',        '3008000008', 'prod000',  'Pereira',      NULL,           NULL,                    2, 'Inactivo'),
-(9,  'NIT', 'Supermercado Central', 'central@super.com',        '3009000009', 'comp000',  'Sur',          'Cali',         'Supermercado Central',  3, 'Activo'),
-(10, 'CC',  'Juan Ramirez',         'juan.r@agro.com',          '3010000010', 'admin456', 'Bogota',       NULL,           NULL,                    1, 'Activo');
+(1,  'CC',  '1010101010', 'Carlos Mora',          'admin@agrodirecto.com',    '3001000001', 'admin123', 'Bogota',       NULL,           NULL,                    1, 'Activo'),
+(2,  'NIT', '900123456-1','Finca El Paraiso SAS', 'finca.paraiso@campo.com',  '3002000002', 'prod123',  'Medellin',     NULL,           NULL,                    2, 'Activo'),
+(3,  'NIT', '900234567-2','Agro Santa Marta',     'agro.santamarta@campo.com','3003000003', 'prod456',  'Santa Marta',  NULL,           NULL,                    2, 'Activo'),
+(4,  'NIT', '900345678-3','Finca Los Andes',      'losandes@campo.com',       '3004000004', 'prod789',  'Cali',         NULL,           NULL,                    2, 'Activo'),
+(5,  'NIT', '900456789-4','Restaurante La Plaza', 'compras@laplaza.com',      '3005000005', 'comp123',  'Centro',       'Bogota',       'Restaurante La Plaza',  3, 'Activo'),
+(6,  'NIT', '900567890-5','Hotel Campestre',      'suministros@hotelc.com',   '3006000006', 'comp456',  'El Poblado',   'Medellin',     'Hotel Campestre',       3, 'Activo'),
+(7,  'NIT', '900678901-6','Distribuidora Norte',  'pedidos@distnorte.com',    '3007000007', 'comp789',  'Norte',        'Barranquilla', 'Distribuidora Norte',   3, 'Activo'),
+(8,  'CC',  '1020202020', 'Maria Gonzalez',       'maria.g@campo.com',        '3008000008', 'prod000',  'Pereira',      NULL,           NULL,                    2, 'Inactivo'),
+(9,  'NIT', '900789012-7','Supermercado Central', 'central@super.com',        '3009000009', 'comp000',  'Sur',          'Cali',         'Supermercado Central',  3, 'Activo'),
+(10, 'CC',  '1030303030', 'Juan Ramirez',         'juan.r@agro.com',          '3010000010', 'admin456', 'Bogota',       NULL,           NULL,                    1, 'Activo');
 
+
+-- ============================================================
+-- INSERT PROVEEDORES
+-- ============================================================
+INSERT INTO proveedores (id, nombre, tipo, ciudad, telefono, correo, estado) VALUES
+(1,'TransCarga SAS',     'Logistica',     'Medellin',      '3101000001','ops@transcarga.com',    'Activo'),
+(2,'FrioExpress Ltda',   'Refrigeracion', 'Bogota',        '3101000002','frio@express.com',      'Activo'),
+(3,'AgroInsumos del Sur','Insumos',       'Cali',          '3101000003','ventas@agroinsumos.com','Activo'),
+(4,'EmpaqueStar',        'Empaque',       'Bucaramanga',   '3101000004','info@empaquestar.com',  'Inactivo'),
+(5,'LogiCampo SAS',      'Logistica',     'Pereira',       '3101000005','logicampo@campo.com',   'Activo'),
+(6,'Semillas del Llano', 'Insumos',       'Villavicencio', '3101000006','semillas@llano.com',    'Activo'),
+(7,'CajaFlex Colombia',  'Empaque',       'Manizales',     '3101000007','cajaflex@col.com',      'Activo'),
+(8,'ColdChain Andina',   'Refrigeracion', 'Bogota',        '3101000008','cold@andina.com',       'Inactivo');
 
 -- ============================================================
 -- INSERT LOTES
@@ -318,3 +390,33 @@ VALUES
 (8,6,'Confirmada','2026-06-08'),
 (9,7,'Pendiente', '2026-06-12'),
 (10,8,'Cancelada','2026-06-13');
+
+-- ============================================================
+-- INSERT FAVORITOS
+-- comprador_id -> usuarios con rol_id=3 (Comprador)
+-- productor_id -> usuarios con rol_id=2 (Productor)
+-- ============================================================
+INSERT INTO favoritos (comprador_id, productor_id, fecha_agregado) VALUES
+(5, 2, '2026-06-01'),
+(5, 3, '2026-06-05'),
+(6, 2, '2026-06-10'),
+(6, 4, '2026-06-12'),
+(7, 3, '2026-06-15'),
+(9, 4, '2026-06-20');
+
+-- ============================================================
+-- SINCRONIZAR SECUENCIAS (evita UniqueViolation en próximos INSERT)
+-- Necesario porque los datos de arriba se insertaron con id explícito
+-- en columnas SERIAL, y eso no mueve el contador interno de la secuencia.
+-- favoritos no aparece aquí porque su llave primaria es compuesta
+-- (comprador_id, productor_id) y no usa SERIAL.
+-- ============================================================
+SELECT setval(
+    'historial_seguimiento_id_seq',
+    (SELECT COALESCE(MAX(id), 0) FROM historial_seguimiento)
+);
+
+SELECT setval(
+    'historial_reservas_id_seq',
+    (SELECT COALESCE(MAX(id), 0) FROM historial_reservas)
+);

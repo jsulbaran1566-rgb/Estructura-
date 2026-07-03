@@ -1,0 +1,58 @@
+# ============================================================
+# AgroDirecto — Guía de instalación y arranque (backend)
+# ============================================================
+#
+# 1. Ubicarse en la carpeta del backend
+#    cd estructura-api
+#
+# 2. Crear y activar entorno virtual
+#    Windows (PowerShell):
+#      python -m venv venv
+#      venv\Scripts\activate
+#    Mac/Linux:
+#      python3 -m venv venv
+#      source venv/bin/activate
+#
+# 3. Instalar dependencias
+#    pip install -r requirements.txt
+#    (instala: fastapi, uvicorn, sqlalchemy, psycopg2-binary,
+#     pydantic[email], passlib[bcrypt], bcrypt==4.0.1, python-jose[cryptography])
+#
+# 4. Verificar version de bcrypt (importante, puede romper el login)
+#    pip show bcrypt   -> debe decir Version: 4.0.1
+#    si no:  pip install "bcrypt==4.0.1" --force-reinstall
+#
+# 5. Confirmar PostgreSQL corriendo y crear la base de datos
+#    Si psql no se reconoce en PowerShell, usar ruta completa:
+#      & "C:\Program Files\PostgreSQL\<version>\bin\psql.exe" -U postgres -h localhost
+#    (o usar pgAdmin 4 como alternativa grafica)
+#    Dentro de psql:
+#      CREATE DATABASE agro_mercado;
+#
+#    Si el usuario/clave/puerto de Postgres no son los del proyecto,
+#    editar: estructura-api/scr/Conexion/database.py
+#      SQLALCHEMY_DATABASE_URL = "postgresql+psycopg2://usuario:clave@localhost/agro_mercado"
+#
+# 6. Cargar el esquema y datos de ejemplo
+#    psql -U postgres -h localhost -d agro_mercado -f agro_mercado_postgres.sql
+#
+# 7. Levantar el servidor
+#    cd scr
+#    uvicorn main:app --reload
+#    Probar en el navegador: http://127.0.0.1:8000/docs
+#
+# 8. Hashear las claves de los datos de ejemplo (evita error 500 en login)
+#    Estando en estructura-api/scr con el venv activo:
+#      python ../rehash_claves.py
+#
+# 9. Abrir el frontend
+#    login.html -> click derecho -> "Open with Live Server"
+#    Confirmar que la URL sea 127.0.0.1:5500 o localhost:5500
+#    (debe coincidir con los origenes permitidos en el CORS de main.py)
+#
+# ------------------------------------------------------------
+# Pendiente de seguridad antes de produccion:
+# - Verificar el JWT en las rutas protegidas (actualmente no se valida)
+# - Mover CLAVE_SECRETA (seguridad.py) y credenciales de BD (database.py)
+#   a variables de entorno (.env)
+# ============================================================
