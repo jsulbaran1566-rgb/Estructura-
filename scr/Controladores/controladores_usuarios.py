@@ -197,6 +197,19 @@ def editar_usuario(
         usuario.tipo_documento = datos.tipo_documento
     if datos.nombre is not None:
         usuario.nombre = datos.nombre
+    if datos.correo is not None:
+        duplicado = db.query(models.Usuario).filter(
+            models.Usuario.correo == datos.correo,
+            models.Usuario.id != id,
+        ).first()
+        if duplicado:
+            return respuesta_error(
+                f"Ya existe un usuario con el correo '{datos.correo}'",
+                status_code=400,
+            )
+        usuario.correo = datos.correo
+    if datos.clave is not None:
+        usuario.clave = hashear_clave(datos.clave)
     if datos.telefono is not None:
         duplicado = db.query(models.Usuario).filter(
             models.Usuario.telefono == datos.telefono,

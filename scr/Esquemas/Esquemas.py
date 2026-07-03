@@ -199,13 +199,15 @@ class UsuarioCrear(BaseModel):
 
 
 class UsuarioEditar(BaseModel):
-    tipo_documento: Optional[str] = None
-    nombre:         Optional[str] = None
-    telefono:       Optional[str] = None
-    direccion:      Optional[str] = None
-    ciudad:         Optional[str] = None
-    rol_id:         Optional[int] = None
-    estado:         Optional[str] = None
+    tipo_documento: Optional[str]      = None
+    nombre:         Optional[str]      = None
+    correo:         Optional[EmailStr] = None
+    telefono:       Optional[str]      = None
+    clave:          Optional[str]      = None
+    direccion:      Optional[str]      = None
+    ciudad:         Optional[str]      = None
+    rol_id:         Optional[int]      = None
+    estado:         Optional[str]      = None
 
     @field_validator("tipo_documento")
     @classmethod

@@ -1,5 +1,6 @@
 from fastapi import Query, Depends
 from datetime import date
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from Conexion.database import get_db
 import Modelos.models as models
@@ -14,6 +15,12 @@ from Utilidades.respuesta import respuesta_ok, respuesta_error
 from Esquemas.Esquemas import ReservaCrear, ReservaEditar
 
 ESTADOS_VALIDOS = ["Pendiente", "Confirmada", "Entregada", "Cancelada"]
+
+
+def _siguiente_id(db: Session, modelo) -> int:
+    """Calcula el próximo id disponible para tablas sin autoincremento (id INTEGER PRIMARY KEY)."""
+    maximo = db.query(func.max(modelo.id)).scalar()
+    return (maximo or 0) + 1
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -221,6 +228,26 @@ def actualizar_estado_reserva(
             if disponible < reserva.cantidad:
                 raise ErrorStockInsuficiente(reserva.lote.producto, reserva.cantidad, disponible)
             reserva.lote.kg_reservados += reserva.cantidad
+
+        # Al pasar a "Entregada" se generan automáticamente la compra y la venta
+        if datos.estado == "Entregada" and estado_anterior != "Entregada":
+            lote = reserva.lote
+            total = (lote.precio_kg * reserva.cantidad) if lote.precio_kg else None
+
+            db.add(models.Compra(
+                id=_siguiente_id(db, models.Compra),
+                comprador_id=reserva.comprador_id,
+                lote_id=lote.id,
+                cantidad=reserva.cantidad,
+                total=total,
+            ))
+            db.add(models.Venta(
+                id=_siguiente_id(db, models.Venta),
+                vendedor_id=lote.productor_id,
+                lote_id=lote.id,
+                cantidad=reserva.cantidad,
+                total=total,
+            ))
 
         reserva.estado = datos.estado
         db.add(models.HistorialReserva(reserva_id=id, estado=datos.estado))
